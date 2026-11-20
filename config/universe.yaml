@@ -1,0 +1,205 @@
+# ==============================================================================
+# AI 算力 & 存储产业链核心股票池 + 行业风向标 + 供应链传导图谱
+# ==============================================================================
+
+benchmarks:
+  SPY:
+    name: "标普500 ETF"
+    role: "美股大盘基准"
+  QQQ:
+    name: "纳斯达克100 ETF"
+    role: "科技成长基准"
+  SOXX:
+    name: "费城半导体 ETF"
+    role: "半导体核心赛道基准"
+  "^VIX":
+    name: "恐慌指数 VIX"
+    role: "市场隐含波动率"
+  "^TNX":
+    name: "美国10年期国债收益率"
+    role: "科技股估值利率锚"
+
+sectors:
+  cloud_ai:
+    label: "上游 · 云巨头与 AI 基础设施 (CapEx 金主)"
+    benchmark: "QQQ"
+    chain_tier: 1
+    description: "决定全行业 AI 资本开支 (CapEx) 增速，是算力与存储需求的源头"
+  compute_optical:
+    label: "中游 · AI 算力芯片 / 晶圆代工 / 光通信"
+    benchmark: "SOXX"
+    chain_tier: 2
+    description: "直接承接云巨头 GPU/ASIC/光模块订单，业绩弹性大、龙头带动性强"
+  memory_storage:
+    label: "下游 · HBM / DRAM / NAND / 企业级存储周期"
+    benchmark: "SOXX"
+    chain_tier: 3
+    description: "强周期 + AI 服务器单机存储扩容逻辑，高度依赖合约价 (ASP) 与库存拐点"
+  mega_disruptors:
+    label: "高弹性焦点巨头"
+    benchmark: "QQQ"
+    chain_tier: 2
+    description: "高波动、高关注度焦点标的，受事件催化与情绪影响显著"
+  defensive:
+    label: "防御压舱石 (低相关性对冲)"
+    benchmark: "SPY"
+    chain_tier: 0
+    description: "科技回调时的防御底仓，用于平滑组合净值回撤"
+
+# 核心 Watchlist (来自你的自选股) + 产业链风向标 (bellwether: true)
+universe:
+  # --- 上游云巨头 (CapEx 金主) ---
+  GOOG:
+    name: "Alphabet (Google)"
+    sector: "cloud_ai"
+    role: "holding"
+    bellwether: true
+    notes: "搜索+GCP云+TPU自研算力，AI CapEx 核心风向标"
+  AMZN:
+    name: "Amazon"
+    sector: "cloud_ai"
+    role: "holding"
+    bellwether: true
+    notes: "AWS 全球云龙头 + Trainium ASIC，企业级存储/服务器最大买家之一"
+  ORCL:
+    name: "Oracle"
+    sector: "cloud_ai"
+    role: "holding"
+    bellwether: false
+    notes: "OCI AI 算力租赁高弹性标的，关注 RPO 订单与资本开支负债率"
+  MSFT:
+    name: "Microsoft"
+    sector: "cloud_ai"
+    role: "bellwether"
+    bellwether: true
+    notes: "Azure 云与 AI 商业化第一风向标，决定全产业链 CapEx 信心"
+  META:
+    name: "Meta Platforms"
+    sector: "cloud_ai"
+    role: "bellwether"
+    bellwether: true
+    notes: "最激进的 AI 算力/网络/存储采购大户，财报 CapEx 指引极关键"
+
+  # --- 中游算力芯片 & 光通信 ---
+  TSM:
+    name: "台积电 (TSMC)"
+    sector: "compute_optical"
+    role: "bellwether"
+    bellwether: true
+    notes: "先进制程与 CoWoS 封装总龙头，每月营收是最领先的硬核风向标"
+  NVDA:
+    name: "NVIDIA"
+    sector: "compute_optical"
+    role: "watchlist"
+    bellwether: true
+    notes: "AI 算力绝对霸主，决定整个产业链估值天花板与 HBM 需求"
+  AMD:
+    name: "AMD"
+    sector: "compute_optical"
+    role: "watchlist"
+    bellwether: false
+    notes: "数据中心 CPU + MI 系列 GPU 挑战者，财报与份额预期波动极大"
+  AVGO:
+    name: "Broadcom (博通)"
+    sector: "compute_optical"
+    role: "watchlist"
+    bellwether: true
+    notes: "定制 AI ASIC (Google/Meta等) + 以太网交换芯片龙头"
+  INTC:
+    name: "Intel"
+    sector: "compute_optical"
+    role: "watchlist"
+    bellwether: false
+    notes: "传统 x86 + 代工转型困境反转博弈标的，政策与代工良率驱动"
+  COHR:
+    name: "Coherent"
+    sector: "compute_optical"
+    role: "watchlist"
+    bellwether: false
+    notes: "800G/1.6T 高速光模块与光通信核心受益股，高 Beta 弹性标的"
+
+  # --- 下游内存 & 存储周期 (重点区域) ---
+  SKHY:
+    name: "SK Hynix (SK海力士)"
+    sector: "memory_storage"
+    role: "holding"
+    bellwether: true
+    yahoo_fallbacks: ["SKHY", "000660.KS", "HXSCF", "HXSCL"]
+    notes: "HBM 绝对龙头，深度绑定 NVDA，直接反映 AI 高端内存景气度"
+  MU:
+    name: "Micron Technology (美光)"
+    sector: "memory_storage"
+    role: "watchlist"
+    bellwether: true
+    notes: "美股纯正 HBM/DRAM/NAND 龙头，每季财报最早披露存储周期拐点"
+  STX:
+    name: "Seagate Technology (希捷)"
+    sector: "memory_storage"
+    role: "holding"
+    bellwether: false
+    notes: "HAMR 企业级大容量 HDD 龙头，受益云厂商近线冷数据存储扩建"
+  WDC:
+    name: "Western Digital (西部数据)"
+    sector: "memory_storage"
+    role: "watchlist"
+    bellwether: false
+    notes: "企业级 HDD 核心双寡头之一，与 STX 强联动、适合同赛道强弱对比"
+  SNDK:
+    name: "SanDisk (闪迪)"
+    sector: "memory_storage"
+    role: "watchlist"
+    bellwether: false
+    notes: "纯正 NAND Flash / 企业级 SSD 标的，周期弹性极大"
+
+  # --- 高弹性焦点巨头 ---
+  ANT:
+    name: "ANT (焦点新星)"
+    sector: "mega_disruptors"
+    role: "watchlist"
+    bellwether: false
+    notes: "高成交、高弹性焦点标的（若上市时间较短，重点看量价结构与事件催化）"
+  SPCX:
+    name: "SPCX (焦点巨头)"
+    sector: "mega_disruptors"
+    role: "watchlist"
+    bellwether: false
+    notes: "高波动焦点巨头标的"
+
+  # --- 防御压舱石 ---
+  MCD:
+    name: "McDonald's (麦当劳)"
+    sector: "defensive"
+    role: "holding"
+    bellwether: false
+    notes: "消费防御底仓，与半导体/AI 相关性极低，用于降低组合整体波动"
+
+# 产业链上下游传导关系 (source -> target, 供 Lead-Lag 分析与 AI 产业链推理使用)
+supply_chain_edges:
+  - {source: "MSFT", target: "NVDA", logic: "Azure AI CapEx -> GPU 采购"}
+  - {source: "META", target: "NVDA", logic: "Meta AI 集群扩建 -> GPU 采购"}
+  - {source: "AMZN", target: "NVDA", logic: "AWS 算力投入 -> GPU/服务器"}
+  - {source: "GOOG", target: "AVGO", logic: "Google TPU 迭代 -> 博通定制 ASIC"}
+  - {source: "META", target: "AVGO", logic: "Meta 自研芯片/交换机 -> 博通订单"}
+  - {source: "AMZN", target: "STX", logic: "AWS 云数据暴增 -> 企业级大容量 HDD"}
+  - {source: "GOOG", target: "STX", logic: "GCP/YouTube 冷存储 -> 近线 HDD"}
+  - {source: "MSFT", target: "WDC", logic: "Azure 存储基建 -> 企业级 HDD"}
+  - {source: "ORCL", target: "NVDA", logic: "OCI 算力中心扩张 -> GPU 采购"}
+  - {source: "TSM", target: "NVDA", logic: "CoWoS 产能与先进制程出货 -> AI 芯片交付"}
+  - {source: "TSM", target: "AMD", logic: "先进制程产能 -> MI GPU 与 EPYC 交付"}
+  - {source: "NVDA", target: "SKHY", logic: "Blackwell/Rubin GPU 放量 -> HBM 核心供货"}
+  - {source: "NVDA", target: "MU", logic: "AI GPU 放量 -> HBM3E/HBM4 第二供应商"}
+  - {source: "NVDA", target: "COHR", logic: "AI 集群互连升级 -> 800G/1.6T 光模块"}
+  - {source: "MU", target: "SKHY", logic: "美光最先发财报 -> 提前揭示 DRAM/HBM 周期"}
+  - {source: "MU", target: "SNDK", logic: "美光 NAND 合约价指引 -> 传导至闪迪"}
+  - {source: "WDC", target: "STX", logic: "双寡头 HDD 产能利用率与涨价 -> 直接共振"}
+
+# 同赛道配对轮动监控 (用于监测价差 Z-Score 偏离与强弱切换)
+rotation_pairs:
+  - {pair: ["STX", "WDC"], label: "企业级 HDD 双寡头 (STX vs WDC)"}
+  - {pair: ["MU", "SKHY"], label: "HBM/DRAM 双雄 (MU vs SKHY)"}
+  - {pair: ["MU", "SNDK"], label: "综合存储 vs 纯 NAND (MU vs SNDK)"}
+  - {pair: ["GOOG", "AMZN"], label: "云巨头核心对决 (GOOG vs AMZN)"}
+  - {pair: ["AMZN", "ORCL"], label: "云龙头 vs 高弹性云基建 (AMZN vs ORCL)"}
+  - {pair: ["NVDA", "AMD"], label: "AI GPU 龙头 vs 挑战者 (NVDA vs AMD)"}
+  - {pair: ["NVDA", "AVGO"], label: "GPU vs 定制 ASIC (NVDA vs AVGO)"}
+  - {pair: ["SOXX", "MCD"], label: "进攻半导体 vs 防御麦当劳 (风险偏好温度)"}

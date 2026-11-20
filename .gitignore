@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+ENV/
+build/
+dist/
+*.egg-info/
+
+# Local data, caches, DB & generated reports
+data/
+reports/
+logs/
+*.db
+*.sqlite
+*.sqlite3
+*.parquet
+*.pkl
+*.pt
+
+# Secrets & local overrides
+.env
+.streamlit/secrets.toml
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

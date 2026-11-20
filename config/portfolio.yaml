@@ -1,0 +1,45 @@
+# ==============================================================================
+# 当前账户与持仓配置 (你可以在网页界面「持仓与风控」页直接可视化修改并保存)
+# ==============================================================================
+
+account:
+  total_equity_usd: 100000.0       # 你的美股总资金规模 (美元)，用于精准计算建议买入股数
+  cash_usd: 15000.0                # 当前可用现金 (美元)
+  max_risk_per_trade_pct: 1.25     # 单笔交易最大止损风险占总资金比例 (专业波段建议 1.0% - 1.5%)
+  max_single_position_pct: 20.0    # 单只股票最大仓位上限 (%)
+  max_sector_exposure_pct: 45.0    # 单一细分赛道最大敞口预警线 (%)
+  min_reward_risk_ratio: 2.0       # 最低盈亏比门槛 (低于 2:1 不建议开新仓)
+  holding_horizon_days: 30         # 目标持仓周期 (20-45 交易日 ≈ 1~2 个月)
+
+# 当前持仓 (已预填你的 6 只股票；shares 与 avg_cost 请在 UI 中按实际成本修改)
+holdings:
+  - symbol: "GOOG"
+    shares: 50
+    avg_cost: 0.0                  # 填 0 表示暂未录入成本，系统会自动按最新价展示估值；录入后可精准算盈亏与保本止损
+    stop_loss: 0.0                 # 可选手动止损价；填 0 时系统自动用结构+ATR 给出建议止损
+    thesis: "云与 AI 核心底仓"
+  - symbol: "STX"
+    shares: 30
+    avg_cost: 0.0
+    stop_loss: 0.0
+    thesis: "企业级大容量 HDD 周期波段"
+  - symbol: "MCD"
+    shares: 45
+    avg_cost: 0.0
+    stop_loss: 0.0
+    thesis: "消费防御对冲仓位"
+  - symbol: "AMZN"
+    shares: 60
+    avg_cost: 0.0
+    stop_loss: 0.0
+    thesis: "AWS 云 + AI 基建核心"
+  - symbol: "ORCL"
+    shares: 100
+    avg_cost: 0.0
+    stop_loss: 0.0
+    thesis: "OCI AI 算力租赁高弹性"
+  - symbol: "SKHY"
+    shares: 100
+    avg_cost: 0.0
+    stop_loss: 0.0
+    thesis: "HBM 绝对龙头"
