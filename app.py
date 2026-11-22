@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -360,18 +361,38 @@ button[data-baseweb="tab"][aria-selected="true"] {
     color: #FFFFFF !important;
     border-bottom-color: #2962FF !important;
 }
-/* Make watchlist buttons crisp & flat */
-div.wl-btn-wrap button {
-    padding: 0.25rem 0.55rem !important;
-    font-family: 'JetBrains Mono', monospace !important;
-    font-size: 0.79rem !important;
-    justify-content: space-between !important;
-    background-color: #0F141C !important;
-    border: 1px solid #1C2430 !important;
+/* Sleek Broker Watchlist Container & Unified Quote Cards */
+.st-key-wl_scroll [data-testid="stVerticalBlock"] {
+    gap: 5px !important;
 }
-div.wl-btn-wrap button:hover {
+.st-key-wl_scroll button {
+    padding: 7px 10px !important;
+    min-height: 0 !important;
+    width: 100% !important;
+    text-align: left !important;
+    justify-content: flex-start !important;
+    background-color: #0D121A !important;
+    border: 1px solid #1C2533 !important;
+    border-left: 3px solid transparent !important;
+    border-radius: 7px !important;
+    transition: border-color 0.12s ease, background-color 0.12s ease;
+}
+.st-key-wl_scroll button:hover {
+    border-color: #2E4160 !important;
+    border-left-color: #58A6FF !important;
+    background-color: #121A26 !important;
+}
+.st-key-wl_scroll button[kind="primary"] {
+    background-color: #142034 !important;
     border-color: #2962FF !important;
-    background-color: #151E2E !important;
+    border-left: 3px solid #2962FF !important;
+}
+.st-key-wl_scroll button p {
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 0.76rem !important;
+    line-height: 1.42 !important;
+    margin: 0 !important;
+    width: 100% !important;
 }
 </style>
 """
@@ -717,13 +738,143 @@ def _render_trade_desk_tab(
     if st.query_params.get("sym") != st.session_state["desk_selected_sym"]:
         st.query_params["sym"] = st.session_state["desk_selected_sym"]
 
-    col_wl, col_chart, col_ticket = st.columns([1.08, 2.22, 1.05], gap="medium")
+    col_wl, col_chart, col_ticket = st.columns([1.18, 2.16, 1.02], gap="medium")
 
     # --- LEFT RAIL: BROKER WATCHLIST QUOTE LADDER + ANY-TICKER LOOKUP + EDIT ---
     with col_wl:
-        wl_h1, wl_h2 = st.columns([1.6, 1.0], vertical_alignment="center")
+        wl_h1, wl_h2, wl_h3 = st.columns([1.45, 0.85, 0.95], vertical_alignment="center")
         wl_h1.markdown(f"**{t('watchlist_hdr', lang)} ({len(display_syms)})**")
+
         with wl_h2:
+            with st.popover("Edit" if not is_zh else "管理", use_container_width=True):
+                edit_add_tab, edit_rem_tab = st.tabs(
+                    ["Add" if not is_zh else "添加自选", "Remove" if not is_zh else "移除自选"]
+                )
+                with edit_add_tab:
+                    raw_add = st.text_input(
+                        "Ticker(s)" if not is_zh else "美股代码（支持逗号/空格批量添加）",
+                        placeholder="e.g. PLTR, ANET",
+                        key="wl_add_tk",
+                    )
+                    sec_keys = ["auto"] + list((universe_cfg.get("sectors") or {}).keys()) + ["other"]
+                    sec_keys = list(dict.fromkeys(sec_keys))
+
+                    def _fmt_sec_opt(k: str) -> str:
+                        if k == "auto":
+                            return "Auto (Detect from Yahoo)" if not is_zh else "自动识别（推荐，无需手选）"
+                        if k == "other":
+                            return "Other / General Equity" if not is_zh else "其他 / 通用美股"
+                        raw_zh = str(((universe_cfg.get("sectors") or {}).get(k) or {}).get("label", k))
+                        return tr_sector(k, raw_zh, lang)
+
+                    picked_sec = st.selectbox(
+                        "Sector (Optional)" if not is_zh else "所属赛道（可选）",
+                        options=sec_keys,
+                        index=0,
+                        format_func=_fmt_sec_opt,
+                        help=(
+                            "Optional grouping for peer ranking, sector exposure & benchmark RS (defaults to QQQ if other)."
+                            if not is_zh
+                            else "仅用于同赛道横向排行、赛道敞口统计和相对基准选择；留「自动识别」即可，非必填。"
+                        ),
+                        key="wl_add_sec",
+                    )
+                    if st.button(
+                        "Add to Watchlist" if not is_zh else "确认添加",
+                        type="primary",
+                        use_container_width=True,
+                        key="btn_wl_add_confirm",
+                    ):
+                        tokens = [
+                            tok.upper().strip()
+                            for tok in re.split(r"[,\s;]+", raw_add or "")
+                            if re.fullmatch(r"[A-Za-z0-9.\-^]{1,12}", tok.strip())
+                        ]
+                        tokens = list(dict.fromkeys(tokens))
+                        if not tokens:
+                            st.warning("Enter at least one valid ticker." if not is_zh else "请输入至少一个有效的股票代码。")
+                        else:
+                            u_copy = dict(universe_cfg)
+                            u_copy["universe"] = dict(u_copy.get("universe") or {})
+                            md_add = MarketDataFetcher(settings.data_dir, history_years=2)
+                            lq_store = dict(st.session_state.get("live_quotes") or {})
+                            qq_store = dict(st.session_state.get("quick_quotes") or {})
+                            added: list[str] = []
+                            skipped: list[str] = []
+                            for tk_sym in tokens:
+                                if tk_sym in u_copy["universe"]:
+                                    skipped.append(tk_sym)
+                                    continue
+                                meta_info = md_add.fetch_ticker_metadata(tk_sym)
+                                final_sec = meta_info["sector"] if picked_sec == "auto" else picked_sec
+                                u_copy["universe"][tk_sym] = {
+                                    "name": meta_info["name"],
+                                    "sector": final_sec,
+                                    "role": "holding" if tk_sym in holding_syms else "watchlist",
+                                    "bellwether": False,
+                                    "notes": "Added via UI",
+                                }
+                                q_info = meta_info.get("quote") or {}
+                                if q_info.get("regular_price") is not None or q_info.get("ext_price") is not None:
+                                    lq_store[tk_sym] = q_info
+                                    if q_info.get("regular_price") is not None:
+                                        qq_store[tk_sym] = {
+                                            "close": q_info["regular_price"],
+                                            "chg_1d_pct": q_info.get("regular_change_pct") or 0.0,
+                                            "pos_in_52w_pct": 50.0,
+                                        }
+                                added.append(tk_sym)
+                            if added:
+                                save_universe(u_copy)
+                                st.session_state["live_quotes"] = lq_store
+                                st.session_state["quick_quotes"] = qq_store
+                                st.session_state["desk_selected_sym"] = added[-1]
+                                st.query_params["sym"] = added[-1]
+                                st.rerun()
+                            elif skipped:
+                                st.info(
+                                    f"Already in watchlist: {', '.join(skipped)}"
+                                    if not is_zh
+                                    else f"已在自选股中：{', '.join(skipped)}"
+                                )
+
+                with edit_rem_tab:
+                    removable = [s for s in u_meta.keys() if s not in holding_syms]
+                    held_in_u = [s for s in u_meta.keys() if s in holding_syms]
+                    rem_choices = removable + held_in_u
+                    rem_selected = st.multiselect(
+                        "Select ticker(s) to remove" if not is_zh else "选择要移除的代码（支持多选）",
+                        options=rem_choices,
+                        format_func=lambda s: (
+                            f"{s} · {str((u_meta.get(s) or {}).get('name', s)).split('(')[0].strip()}"
+                            + (" [POS]" if s in holding_syms else "")
+                        ),
+                        key="wl_rem_multi",
+                    )
+                    if any(s in holding_syms for s in rem_selected):
+                        st.caption(
+                            "Note: Active holdings [POS] remain visible until also removed in Positions & Risk."
+                            if not is_zh
+                            else "提示：标记 [POS] 的当前持仓股需在「持仓与风控」中清仓才会从列表消失。"
+                        )
+                    if st.button(
+                        "Remove Selected" if not is_zh else "确认移除",
+                        use_container_width=True,
+                        disabled=not rem_selected,
+                        key="btn_wl_rem_confirm",
+                    ):
+                        u_copy = dict(universe_cfg)
+                        u_copy["universe"] = dict(u_copy.get("universe") or {})
+                        for s in rem_selected:
+                            u_copy["universe"].pop(s, None)
+                        save_universe(u_copy)
+                        remaining = [s for s in display_syms if s not in rem_selected or s in holding_syms]
+                        if st.session_state.get("desk_selected_sym") not in remaining and remaining:
+                            st.session_state["desk_selected_sym"] = remaining[0]
+                            st.query_params["sym"] = remaining[0]
+                        st.rerun()
+
+        with wl_h3:
             if st.button("Quotes" if not is_zh else "刷报价", use_container_width=True, key="btn_quick_wl_quotes"):
                 with st.spinner("Fetching regular & pre/post-market quotes..." if not is_zh else "拉取常规及盘前/盘后实时报价..."):
                     md_q = MarketDataFetcher(settings.data_dir, history_years=2)
@@ -755,7 +906,7 @@ def _render_trade_desk_tab(
                     st.session_state["live_quotes"] = live_q
                     st.rerun()
 
-        lc1, lc2 = st.columns([2.2, 1.0])
+        lc1, lc2 = st.columns([2.1, 1.0])
         custom_sym = lc1.text_input(
             "lookup",
             placeholder=t("any_ticker_ph", lang),
@@ -776,22 +927,38 @@ def _render_trade_desk_tab(
                 st.session_state["desk_selected_sym"] = custom_sym
                 st.rerun()
 
-        sort_mode = st.selectbox(
+        sf1, sf2 = st.columns([1.45, 1.0])
+        sort_mode = sf1.selectbox(
             "sort",
             options=["POS_FIRST", "SCORE_DESC", "CHG_ASC", "CHG_DESC"],
             format_func=lambda x: {
-                "POS_FIRST": "Holdings First / Score" if lang == "en" else "持仓优先 / 评分",
+                "POS_FIRST": "Holdings / Score" if lang == "en" else "持仓优先 / 评分",
                 "SCORE_DESC": "Highest Score" if lang == "en" else "综合分从高到低",
-                "CHG_ASC": "Biggest Dip (1D %)" if lang == "en" else "今日跌幅最大",
-                "CHG_DESC": "Top Gainers (1D %)" if lang == "en" else "今日涨幅最大",
+                "CHG_ASC": "Biggest Dip (1D)" if lang == "en" else "今日跌幅最大",
+                "CHG_DESC": "Top Gainers (1D)" if lang == "en" else "今日涨幅最大",
             }[x],
+            label_visibility="collapsed",
+        )
+        wl_filter = sf2.selectbox(
+            "filter",
+            options=["ALL", "POS"],
+            format_func=lambda x: (
+                ("All" if lang == "en" else "全部")
+                if x == "ALL"
+                else ("Holdings" if lang == "en" else "仅持仓")
+            ),
             label_visibility="collapsed",
         )
 
         quick_quotes = st.session_state.get("quick_quotes") or {}
         live_quotes = dict((payload or {}).get("live_quotes") or {})
         live_quotes.update(st.session_state.get("live_quotes") or {})
-        ordered_syms = list(display_syms)
+        ordered_syms = [
+            s
+            for s in display_syms
+            if wl_filter == "ALL"
+            or (s in holding_syms or (stocks.get(s) or {}).get("role") == "holding")
+        ]
         if sort_mode == "POS_FIRST":
             ordered_syms.sort(
                 key=lambda s: (
@@ -810,9 +977,9 @@ def _render_trade_desk_tab(
                 key=lambda s: -float((stocks.get(s) or quick_quotes.get(s) or {}).get("chg_1d_pct") or 0.0)
             )
 
-        # Render sleek scrollable quote ladder (ALWAYS populated from config/universe.yaml!)
+        # Unified 2-line clickable quote cards (zero dangling widgets or blank gaps)
         active_sym = st.session_state.get("desk_selected_sym", "GOOG")
-        with st.container(height=620, border=False):
+        with st.container(border=False, key="wl_scroll", gap=None):
             for sym in ordered_syms:
                 sd = stocks.get(sym) if (sym in stocks and not stocks[sym].get("error")) else None
                 qq = quick_quotes.get(sym)
@@ -822,7 +989,7 @@ def _render_trade_desk_tab(
                 is_bell = meta.get("role") == "bellwether" and not is_pos
                 is_active = sym == active_sym
 
-                role_tag = " [POS]" if is_pos else (" [BELL]" if is_bell else "")
+                role_md = " :blue[POS]" if is_pos else (" :gray[BELL]" if is_bell else "")
                 px = (qq or {}).get("close") or (lq or {}).get("regular_price") or (sd or {}).get("close")
                 chg = (
                     (qq or {}).get("chg_1d_pct")
@@ -834,93 +1001,52 @@ def _render_trade_desk_tab(
                     )
                 )
 
-                if px is not None and chg is not None:
-                    arrow = "▲" if float(chg) >= 0 else "▼"
-                    btn_label = f"{sym}{role_tag}   ${float(px):,.2f}   {arrow}{abs(float(chg)):.2f}%"
-                else:
-                    short_name = str(meta.get("name", sym)).split("(")[0].strip()[:14]
-                    btn_label = f"{sym}{role_tag}   ·   {short_name}"
+                # Line 1: Ticker + Role | Regular Price + 1D % | Score badge
+                line1_parts = [f"**{sym}**{role_md}"]
+                if px is not None:
+                    line1_parts.append(f"**${float(px):,.2f}**")
+                if chg is not None:
+                    chg_f = float(chg)
+                    chg_col = "green" if chg_f >= 0 else "red"
+                    line1_parts.append(f":{chg_col}[{chg_f:+.2f}%]")
+                if sd and sd.get("composite_score") is not None:
+                    sc = float(sd["composite_score"])
+                    sc_col = "green" if sc >= 70 else ("orange" if sc >= 52 else "red")
+                    line1_parts.append(f":{sc_col}[S{sc:.0f}]")
+                line1 = " · ".join(line1_parts)
 
-                st.markdown('<div class="wl-btn-wrap">', unsafe_allow_html=True)
+                # Line 2: Compact Pre/Post-Market quote + 52W percentile
+                line2_parts: list[str] = []
+                if lq and lq.get("ext_session") and lq.get("ext_price") is not None:
+                    e_chg = lq.get("ext_change_pct")
+                    if e_chg is not None:
+                        e_f = float(e_chg)
+                        e_col = "green" if e_f >= 0 else "red"
+                        line2_parts.append(
+                            f":gray[{lq['ext_session']}] ${float(lq['ext_price']):,.2f} :{e_col}[{e_f:+.2f}%]"
+                        )
+                    else:
+                        line2_parts.append(f":gray[{lq['ext_session']}] ${float(lq['ext_price']):,.2f}")
+
+                pos52_val = (sd or {}).get("pos_in_52w_pct")
+                if pos52_val is None and qq:
+                    pos52_val = qq.get("pos_in_52w_pct")
+                if pos52_val is not None:
+                    line2_parts.append(f":gray[52W {float(pos52_val):.0f}%]")
+                elif not line2_parts:
+                    short_name = str(meta.get("name", sym)).split("(")[0].strip()[:18]
+                    line2_parts.append(f":gray[{short_name}]")
+
+                card_label = f"{line1}  \n" + " :gray[|] ".join(line2_parts)
                 if st.button(
-                    btn_label,
+                    card_label,
                     key=f"wl_btn_{sym}",
                     type="primary" if is_active else "secondary",
                     use_container_width=True,
                 ):
                     st.session_state["desk_selected_sym"] = sym
+                    st.query_params["sym"] = sym
                     st.rerun()
-                st.markdown("</div>", unsafe_allow_html=True)
-
-                ext_line = ""
-                if lq and lq.get("ext_session") and lq.get("ext_price") is not None:
-                    e_chg = lq.get("ext_change_pct")
-                    e_col = "#0ECB81" if (e_chg or 0.0) >= 0 else "#F6465D"
-                    e_chg_s = f" ({float(e_chg):+.2f}%)" if e_chg is not None else ""
-                    ext_line = (
-                        f'<div class="wl-meta" style="margin-bottom:2px;">'
-                        f'<span>{lq["ext_session"]}-MKT</span>'
-                        f'<span style="color:{e_col};font-weight:600;">${float(lq["ext_price"]):,.2f}{e_chg_s}</span>'
-                        f'</div>'
-                    )
-
-                if sd:
-                    sc = float(sd.get("composite_score") or 50.0)
-                    pos52 = max(2.0, min(98.0, float(sd.get("pos_in_52w_pct") or 50.0)))
-                    sc_color = "#0ECB81" if sc >= 70 else ("#F0B90B" if sc >= 52 else "#F6465D")
-                    _render_html(
-                        f"""
-                        <div style="margin:-8px 2px 8px 2px;">
-                            {ext_line}
-                            <div class="wl-meta">
-                                <span>52W: {pos52:.0f}%</span>
-                                <span style="color:{sc_color};font-weight:700;">SCR {sc:.0f}</span>
-                            </div>
-                            <div class="range-track"><div class="range-dot" style="left:{pos52:.1f}%;"></div></div>
-                        </div>
-                        """
-                    )
-                elif qq or ext_line:
-                    pos52 = max(2.0, min(98.0, float((qq or {}).get("pos_in_52w_pct") or 50.0)))
-                    _render_html(
-                        f"""
-                        <div style="margin:-8px 2px 8px 2px;">
-                            {ext_line}
-                            <div class="wl-meta"><span>52W: {pos52:.0f}%</span><span>{meta.get('sector', '')}</span></div>
-                            <div class="range-track"><div class="range-dot" style="left:{pos52:.1f}%;"></div></div>
-                        </div>
-                        """
-                    )
-
-        # Quick Watchlist Add / Remove Manager (persists to config/universe.yaml)
-        with st.expander("Edit Watchlist (+ / -)" if not is_zh else "编辑自选股 (+ / -)", expanded=False):
-            new_tk = st.text_input("Add US Ticker" if not is_zh else "添加美股代码", placeholder="e.g. PLTR", key="wl_add_tk").upper().strip()
-            new_sec = st.selectbox(
-                "Sector" if not is_zh else "所属赛道",
-                options=list((universe_cfg.get("sectors") or {}).keys()) or ["cloud_ai", "compute_optical", "memory_storage", "mega_disruptors", "defensive"],
-                key="wl_add_sec",
-            )
-            ac1, ac2 = st.columns(2)
-            if ac1.button("Add" if not is_zh else "添加", use_container_width=True) and new_tk:
-                u_copy = dict(universe_cfg)
-                u_copy["universe"] = dict(u_copy.get("universe") or {})
-                u_copy["universe"][new_tk] = {
-                    "name": new_tk,
-                    "sector": new_sec,
-                    "role": "watchlist",
-                    "bellwether": False,
-                    "notes": "Added via UI",
-                }
-                save_universe(u_copy)
-                st.session_state["desk_selected_sym"] = new_tk
-                st.rerun()
-            rem_tk = st.selectbox("Remove" if not is_zh else "移除代码", options=[""] + list(u_meta.keys()), key="wl_rem_tk")
-            if ac2.button("Remove" if not is_zh else "移除", use_container_width=True) and rem_tk:
-                u_copy = dict(universe_cfg)
-                u_copy["universe"] = dict(u_copy.get("universe") or {})
-                u_copy["universe"].pop(rem_tk, None)
-                save_universe(u_copy)
-                st.rerun()
 
     # Resolve currently active stock data (from full scan, ad-hoc lookup, or live chart preview!)
     active_sym = st.session_state.get("desk_selected_sym", "GOOG")

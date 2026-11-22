@@ -361,6 +361,15 @@ class TestExtendedHoursQuotes(unittest.TestCase):
         # 50 * 200 + 30 * 120 + 15000 = 10000 + 3600 + 15000 = 28600
         self.assertAlmostEqual(_compute_live_account_equity(portfolio_cfg, {}, live_quotes), 28600.0)
 
+    def test_auto_sector_classification(self) -> None:
+        from src.data.market_data import classify_sector_from_info
+
+        self.assertEqual(classify_sector_from_info({"sector": "Technology", "industry": "Semiconductors"}), "compute_optical")
+        self.assertEqual(classify_sector_from_info({"sector": "Technology", "industry": "Computer Hardware & Data Storage"}), "memory_storage")
+        self.assertEqual(classify_sector_from_info({"sector": "Technology", "industry": "Software - Infrastructure"}), "cloud_ai")
+        self.assertEqual(classify_sector_from_info({"sector": "Consumer Defensive", "industry": "Beverages"}), "defensive")
+        self.assertEqual(classify_sector_from_info({}), "other")
+
 
 @unittest.skipUnless(HAS_NUMPY_PANDAS, "numpy/pandas not installed in current host Python")
 class TestQuantNumericalEngines(unittest.TestCase):

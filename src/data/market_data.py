@@ -88,6 +88,24 @@ def _pct_vs_ref(price: float | None, ref: float | None) -> float | None:
     return round((price / ref - 1.0) * 100.0, 2)
 
 
+def classify_sector_from_info(info: dict[str, Any] | None) -> str:
+    """Map Yahoo Finance sector/industry metadata into a Front-Running supply-chain bucket."""
+    meta = info or {}
+    industry = str(meta.get("industry") or "").lower()
+    sector = str(meta.get("sector") or "").lower()
+    combined = f"{sector} {industry}"
+
+    if any(k in combined for k in ("data storage", "memory", "computer hardware", "storage")):
+        return "memory_storage"
+    if any(k in combined for k in ("semiconductor", "communication equipment", "electronic components", "optical")):
+        return "compute_optical"
+    if any(k in combined for k in ("software", "internet", "cloud", "information technology")):
+        return "cloud_ai"
+    if any(k in combined for k in ("consumer defensive", "consumer cyclical", "utilities", "healthcare", "restaurant")):
+        return "defensive"
+    return "other"
+
+
 def extract_extended_quote_from_info(
     symbol: str,
     info: dict[str, Any] | None,
@@ -406,3 +424,22 @@ class MarketDataFetcher:
                     logger.debug("Batch live quote error: %s", exc)
 
         return out
+
+    def fetch_ticker_metadata(self, symbol: str) -> dict[str, Any]:
+        """Fetch display name, inferred sector bucket, and live quote for a newly added ticker."""
+        sym = symbol.upper().strip()
+        info: dict[str, Any] = {}
+        if yf is not None:
+            try:
+                info = yf.Ticker(sym).info or {}
+            except Exception as exc:
+                logger.debug("Metadata fetch failed for %s: %s", sym, exc)
+        name = str(info.get("shortName") or info.get("longName") or sym).strip()
+        sector = classify_sector_from_info(info)
+        quote = extract_extended_quote_from_info(sym, info, sym)
+        return {
+            "symbol": sym,
+            "name": name,
+            "sector": sector,
+            "quote": quote,
+        }
