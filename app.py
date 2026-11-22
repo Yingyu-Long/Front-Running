@@ -395,22 +395,63 @@ def _color_cls(val: Any) -> str:
         return ""
 
 
-def _build_ticker_tape_html(payload: dict[str, Any] | None) -> str:
-    """Render live macro index tape (SPY / QQQ / SOXX / VIX / US10Y) like a broker header."""
-    if not payload:
+def _render_html(html: str) -> None:
+    """Render multiline HTML cleanly in Streamlit without CommonMark indented-code-block artifacts."""
+    compact = "\n".join(line.strip() for line in html.splitlines() if line.strip())
+    st.markdown(compact, unsafe_allow_html=True)
+
+
+def _fmt_ext_badge_html(quote: dict[str, Any] | None, compact: bool = False) -> str:
+    """Format a compact Pre-Market / After-Hours HTML snippet when extended hours pricing is available."""
+    if not quote:
+        return ""
+    sess = quote.get("ext_session")
+    ext_px = quote.get("ext_price")
+    ext_chg = quote.get("ext_change_pct")
+    if not sess or ext_px is None:
+        return ""
+    cls = _color_cls(ext_chg if ext_chg is not None else 0.0)
+    chg_s = f" {float(ext_chg):+.2f}%" if ext_chg is not None else ""
+    if compact:
+        return (
+            f'<span style="color:#8B9BB4;margin-left:4px;">{sess}</span> '
+            f'<span class="{cls}">${float(ext_px):,.2f}{chg_s}</span>'
+        )
+    pill_cls = "pill-green" if (ext_chg or 0.0) >= 0 else "pill-red"
+    return (
+        f'<div style="margin-top:4px;font-size:0.78rem;font-family:JetBrains Mono,monospace;">'
+        f'<span style="color:#8B9BB4;margin-right:6px;">{sess}-MKT</span>'
+        f'<span style="color:#E6EDF3;font-weight:600;">${float(ext_px):,.2f}</span>'
+        f'<span class="qb-pill {pill_cls}" style="font-size:0.68rem;padding:1px 6px;">{chg_s.strip() or "0.00%"}</span>'
+        f'</div>'
+    )
+
+
+def _build_ticker_tape_html(
+    payload: dict[str, Any] | None,
+    live_quotes: dict[str, dict[str, Any]] | None = None,
+) -> str:
+    """Render live macro index tape (SPY / QQQ / SOXX / VIX / US10Y) with optional Pre/Post-Market prices."""
+    lq_map = live_quotes or (payload or {}).get("live_quotes") or {}
+    if not payload and not lq_map:
         return '<div class="ticker-tape"><span class="tape-chip"><span class="tape-sym">MARKET TAPE</span><span class="tape-px">AWAITING SCAN</span></span></div>'
-    rm = (payload.get("regime") or {}).get("metrics") or {}
+    rm = ((payload or {}).get("regime") or {}).get("metrics") or {}
     chips: list[str] = []
     for sym in ("SPY", "QQQ", "SOXX"):
         info = rm.get(sym)
-        if isinstance(info, dict) and info.get("close") is not None:
-            r5 = info.get("ret_5d_pct")
-            cls = _color_cls(r5)
-            r5_s = f"{float(r5):+.1f}% 5D" if r5 is not None else ""
+        lq = lq_map.get(sym) or {}
+        px = lq.get("regular_price") or (info.get("close") if isinstance(info, dict) else None)
+        if px is not None:
+            r5 = info.get("ret_5d_pct") if isinstance(info, dict) else None
+            r1 = lq.get("regular_change_pct")
+            metric_val = r1 if r1 is not None else r5
+            metric_lbl = f"{float(r1):+.2f}%" if r1 is not None else (f"{float(r5):+.1f}% 5D" if r5 is not None else "")
+            cls = _color_cls(metric_val)
+            ext_html = _fmt_ext_badge_html(lq, compact=True)
             chips.append(
                 f'<span class="tape-chip"><span class="tape-sym">{sym}</span>'
-                f'<span class="tape-px">${info["close"]:,.2f}</span>'
-                f'<span class="{cls}">{r5_s}</span></span>'
+                f'<span class="tape-px">${float(px):,.2f}</span>'
+                f'<span class="{cls}">{metric_lbl}</span>{ext_html}</span>'
             )
     if rm.get("VIX") is not None:
         v = float(rm["VIX"])
@@ -469,7 +510,9 @@ def main() -> None:
         )
 
     with top_c2:
-        st.markdown(_build_ticker_tape_html(payload), unsafe_allow_html=True)
+        merged_live_quotes = dict((payload or {}).get("live_quotes") or {})
+        merged_live_quotes.update(st.session_state.get("live_quotes") or {})
+        st.markdown(_build_ticker_tape_html(payload, merged_live_quotes), unsafe_allow_html=True)
 
     st.markdown('<div class="header-divider"></div>', unsafe_allow_html=True)
 
@@ -640,9 +683,12 @@ def _render_trade_desk_tab(
         wl_h1.markdown(f"**{t('watchlist_hdr', lang)} ({len(display_syms)})**")
         with wl_h2:
             if st.button("Quotes" if not is_zh else "刷报价", use_container_width=True, key="btn_quick_wl_quotes"):
-                with st.spinner("Fetching quotes..." if not is_zh else "拉取最新报价..."):
+                with st.spinner("Fetching regular & pre/post-market quotes..." if not is_zh else "拉取常规及盘前/盘后实时报价..."):
                     md_q = MarketDataFetcher(settings.data_dir, history_years=2)
                     q_map, _ = md_q.fetch_universe(universe_cfg, extra_symbols=list(holding_syms))
+                    live_q = md_q.fetch_live_quotes_batch(
+                        universe_cfg, extra_symbols=list(holding_syms), include_benchmarks=True
+                    )
                     quick_quotes: dict[str, dict[str, float]] = {}
                     for sym_q, df_q in q_map.items():
                         if df_q is not None and not df_q.empty:
@@ -651,12 +697,20 @@ def _render_trade_desk_tab(
                             w252 = df_q.tail(min(252, len(df_q)))
                             hi52, lo52 = float(w252["High"].max()), float(w252["Low"].min())
                             pos52 = (c_last - lo52) / (hi52 - lo52) * 100.0 if hi52 > lo52 else 50.0
+                            lq_item = live_q.get(sym_q) or {}
+                            disp_px = lq_item.get("regular_price") or c_last
+                            disp_chg = (
+                                lq_item.get("regular_change_pct")
+                                if lq_item.get("regular_change_pct") is not None
+                                else (round((c_last / c_prev - 1.0) * 100.0, 2) if c_prev > 0 else 0.0)
+                            )
                             quick_quotes[sym_q] = {
-                                "close": round(c_last, 2),
-                                "chg_1d_pct": round((c_last / c_prev - 1.0) * 100.0, 2) if c_prev > 0 else 0.0,
+                                "close": round(float(disp_px), 2),
+                                "chg_1d_pct": round(float(disp_chg), 2),
                                 "pos_in_52w_pct": round(pos52, 1),
                             }
                     st.session_state["quick_quotes"] = quick_quotes
+                    st.session_state["live_quotes"] = live_q
                     st.rerun()
 
         lc1, lc2 = st.columns([2.2, 1.0])
@@ -693,6 +747,8 @@ def _render_trade_desk_tab(
         )
 
         quick_quotes = st.session_state.get("quick_quotes") or {}
+        live_quotes = dict((payload or {}).get("live_quotes") or {})
+        live_quotes.update(st.session_state.get("live_quotes") or {})
         ordered_syms = list(display_syms)
         if sort_mode == "POS_FIRST":
             ordered_syms.sort(
@@ -718,14 +774,23 @@ def _render_trade_desk_tab(
             for sym in ordered_syms:
                 sd = stocks.get(sym) if (sym in stocks and not stocks[sym].get("error")) else None
                 qq = quick_quotes.get(sym)
+                lq = live_quotes.get(sym) or (sd or {}).get("extended_quote")
                 meta = u_meta.get(sym) or {}
                 is_pos = sym in holding_syms or (sd or {}).get("role") == "holding"
                 is_bell = meta.get("role") == "bellwether" and not is_pos
                 is_active = sym == active_sym
 
                 role_tag = " [POS]" if is_pos else (" [BELL]" if is_bell else "")
-                px = (sd or qq or {}).get("close")
-                chg = (sd or qq or {}).get("chg_1d_pct")
+                px = (qq or {}).get("close") or (lq or {}).get("regular_price") or (sd or {}).get("close")
+                chg = (
+                    (qq or {}).get("chg_1d_pct")
+                    if (qq and qq.get("chg_1d_pct") is not None)
+                    else (
+                        (lq or {}).get("regular_change_pct")
+                        if (lq and lq.get("regular_change_pct") is not None)
+                        else (sd or {}).get("chg_1d_pct")
+                    )
+                )
 
                 if px is not None and chg is not None:
                     arrow = "▲" if float(chg) >= 0 else "▼"
@@ -745,32 +810,44 @@ def _render_trade_desk_tab(
                     st.rerun()
                 st.markdown("</div>", unsafe_allow_html=True)
 
+                ext_line = ""
+                if lq and lq.get("ext_session") and lq.get("ext_price") is not None:
+                    e_chg = lq.get("ext_change_pct")
+                    e_col = "#0ECB81" if (e_chg or 0.0) >= 0 else "#F6465D"
+                    e_chg_s = f" ({float(e_chg):+.2f}%)" if e_chg is not None else ""
+                    ext_line = (
+                        f'<div class="wl-meta" style="margin-bottom:2px;">'
+                        f'<span>{lq["ext_session"]}-MKT</span>'
+                        f'<span style="color:{e_col};font-weight:600;">${float(lq["ext_price"]):,.2f}{e_chg_s}</span>'
+                        f'</div>'
+                    )
+
                 if sd:
                     sc = float(sd.get("composite_score") or 50.0)
                     pos52 = max(2.0, min(98.0, float(sd.get("pos_in_52w_pct") or 50.0)))
                     sc_color = "#0ECB81" if sc >= 70 else ("#F0B90B" if sc >= 52 else "#F6465D")
-                    st.markdown(
+                    _render_html(
                         f"""
                         <div style="margin:-8px 2px 8px 2px;">
+                            {ext_line}
                             <div class="wl-meta">
                                 <span>52W: {pos52:.0f}%</span>
                                 <span style="color:{sc_color};font-weight:700;">SCR {sc:.0f}</span>
                             </div>
                             <div class="range-track"><div class="range-dot" style="left:{pos52:.1f}%;"></div></div>
                         </div>
-                        """,
-                        unsafe_allow_html=True,
+                        """
                     )
-                elif qq:
-                    pos52 = max(2.0, min(98.0, float(qq.get("pos_in_52w_pct") or 50.0)))
-                    st.markdown(
+                elif qq or ext_line:
+                    pos52 = max(2.0, min(98.0, float((qq or {}).get("pos_in_52w_pct") or 50.0)))
+                    _render_html(
                         f"""
                         <div style="margin:-8px 2px 8px 2px;">
+                            {ext_line}
                             <div class="wl-meta"><span>52W: {pos52:.0f}%</span><span>{meta.get('sector', '')}</span></div>
                             <div class="range-track"><div class="range-dot" style="left:{pos52:.1f}%;"></div></div>
                         </div>
-                        """,
-                        unsafe_allow_html=True,
+                        """
                     )
 
         # Quick Watchlist Add / Remove Manager (persists to config/universe.yaml)
@@ -831,7 +908,7 @@ def _render_trade_desk_tab(
                 else f"点击左侧 **一键启动全量分析**（或点击上方即时体检）即可解锁 `{active_sym}` 的完整 GPU 量化评分、执行单、10年历史胜率与 5070 Ti AI 排雷。"
             )
         with col_ticket:
-            st.markdown(
+            _render_html(
                 f"""
                 <div class="order-ticket">
                     <div class="ot-header">
@@ -842,8 +919,7 @@ def _render_trade_desk_tab(
                         {'Run a Full Scan or Lookup to calculate Entry Zone, Hard Stop-Loss, 2R/3R Targets & Volatility-Adjusted Position Size.' if not is_zh else '点击左侧「一键启动全量分析」后，这里会自动生成参考入场区、硬止损、2R/3R 目标位与建议买入股数。'}
                     </div>
                 </div>
-                """,
-                unsafe_allow_html=True,
+                """
             )
         return
 
@@ -857,14 +933,25 @@ def _render_trade_desk_tab(
 
     # --- CENTER STAGE: BROKER QUOTE HEADER + CANDLESTICK CHART + RESEARCH TABS ---
     with col_chart:
-        chg1 = float(stock_data.get("chg_1d_pct") or 0.0)
+        active_lq = live_quotes.get(active_sym) or stock_data.get("extended_quote")
+        disp_close = (
+            active_lq.get("regular_price")
+            if (active_lq and active_lq.get("regular_price") is not None)
+            else stock_data.get("close")
+        )
+        chg1 = float(
+            active_lq.get("regular_change_pct")
+            if (active_lq and active_lq.get("regular_change_pct") is not None)
+            else (stock_data.get("chg_1d_pct") or 0.0)
+        )
         chg_pill_cls = "pill-green" if chg1 >= 0 else "pill-red"
         sec_str = tr_sector(str(stock_data.get("sector", "")), str(stock_data.get("sector_label", "")), lang)
         stage_str = tr_stage(stock_data.get("stage_num"), str(stock_data.get("stage_label", "")), lang)
         earn_str = tr_earnings_flag(fn, lang)
         crash_str = tr_crash_badge(cr, lang)
+        ext_banner_html = _fmt_ext_badge_html(active_lq, compact=False)
 
-        st.markdown(
+        _render_html(
             f"""
             <div class="quote-banner">
                 <div>
@@ -877,15 +964,15 @@ def _render_trade_desk_tab(
                     </div>
                 </div>
                 <div style="text-align:right;">
-                    <span class="qb-price">${_fmt_num(stock_data.get('close'))}</span>
+                    <span class="qb-price">${_fmt_num(disp_close)}</span>
                     <span class="qb-pill {chg_pill_cls}">{chg1:+.2f}%</span>
+                    {ext_banner_html}
                     <div style="margin-top:4px;font-size:0.76rem;color:#8B9BB4;font-family:JetBrains Mono,monospace;">
                         5D: {_fmt_pct(stock_data.get('ret_5d_pct'))} &nbsp; 21D: {_fmt_pct(stock_data.get('ret_21d_pct'))} &nbsp; 63D: {_fmt_pct(stock_data.get('ret_63d_pct'))}
                     </div>
                 </div>
             </div>
-            """,
-            unsafe_allow_html=True,
+            """
         )
 
         if stock_data.get("short_history_warning"):
@@ -1009,7 +1096,7 @@ def _render_trade_desk_tab(
         ml_prob = _fmt_pct(ml.get("prob_outperform_21d_pct"), False)
         an_wr = _fmt_pct(an.get("win_rate_21d_pct"), False)
 
-        st.markdown(
+        _render_html(
             f"""
             <div class="order-ticket">
                 <div class="ot-header">
@@ -1023,7 +1110,6 @@ def _render_trade_desk_tab(
                 </div>
                 <div class="score-bar-bg"><div class="score-bar-fill" style="width:{comp_score:.0f}%;background:{sc_bar_col};"></div></div>
                 <div style="margin-bottom:10px;"><span class="qb-pill {sig_pill}" style="margin-left:0;">{sig_text}</span></div>
-
                 <div class="ot-row"><span class="ot-k">{t('lbl_entry_zone', lang)}</span><span class="ot-v accent-blue">${_fmt_num(tk.get('entry_low'))} – ${_fmt_num(tk.get('entry_high'))}</span></div>
                 <div class="ot-row"><span class="ot-k">{t('lbl_hard_stop', lang)}</span><span class="ot-v neg-red">${_fmt_num(tk.get('hard_stop'))} (-{tk.get('stop_dist_pct', 0)}%)</span></div>
                 <div class="ot-row"><span class="ot-k">{t('lbl_trail_stop', lang)}</span><span class="ot-v neu-amber">${_fmt_num(tk.get('trailing_stop_guide'))}</span></div>
@@ -1033,8 +1119,7 @@ def _render_trade_desk_tab(
                 <div class="ot-row"><span class="ot-k">{t('lbl_pos_size', lang)}</span><span class="ot-v">{tk.get('recommended_shares', 0)} shs ({tk.get('recommended_weight_pct', 0)}%)</span></div>
                 <div class="ot-row"><span class="ot-k">Notional / Risk</span><span class="ot-v">{_fmt_usd(tk.get('recommended_usd'), 0)} / {_fmt_usd(tk.get('planned_max_risk_usd'), 0)}</span></div>
             </div>
-            """,
-            unsafe_allow_html=True,
+            """
         )
 
         if st.button(t("btn_quick_log", lang), use_container_width=True):
@@ -1058,7 +1143,7 @@ def _render_trade_desk_tab(
             h_act = tr_holding_action(str(matched_h.get("action", "")), lang)
             pnl_s = _fmt_pct(matched_h.get("pnl_pct"))
             pnl_cls = _color_cls(matched_h.get("pnl_pct"))
-            st.markdown(
+            _render_html(
                 f"""
                 <div class="order-ticket" style="border-color:#2962FF;">
                     <div class="ot-header">
@@ -1071,8 +1156,7 @@ def _render_trade_desk_tab(
                     <div class="ot-row"><span class="ot-k">{'Active Stop' if lang == 'en' else '风控止损'}</span><span class="ot-v neg-red">${_fmt_num(matched_h.get('active_stop'))} ({_fmt_pct(matched_h.get('dist_to_stop_pct'))})</span></div>
                     <div class="ot-row"><span class="ot-k">{'Risk Share' if lang == 'en' else '组合风险贡献'}</span><span class="ot-v neu-amber">{_fmt_pct(matched_h.get('risk_contribution_pct'), False)}</span></div>
                 </div>
-                """,
-                unsafe_allow_html=True,
+                """
             )
 
 
@@ -1704,7 +1788,39 @@ def _render_grid_lab_tab(
     md_live = MarketDataFetcher(settings.data_dir, history_years=settings.history_years)
     fbs = list(((universe_cfg.get("universe") or {}).get(target_sym) or {}).get("yahoo_fallbacks") or [])
     df_live, _ = md_live.fetch_one(target_sym, fallbacks=fbs)
-    last_px = float(df_live["Close"].iloc[-1]) if not df_live.empty else float(s2["anchor_price_live"])
+
+    # Optional Pre/Post-Market anchor price for today's limit order ladder
+    gl_c1, gl_c2 = st.columns([2.6, 1.0], vertical_alignment="center")
+    use_ext_anchor = gl_c1.checkbox(
+        "Anchor order ladder to live Pre/Post-Market price when available"
+        if not is_zh
+        else "优先使用盘前/盘后实时价格作为今日挂单锚定基准价",
+        value=True,
+        key=f"grid_ext_anchor_{target_sym}",
+    )
+    if gl_c2.button(
+        "Refresh Pre/Post Price" if not is_zh else "刷新盘前/盘后价",
+        use_container_width=True,
+        key=f"btn_grid_ext_refresh_{target_sym}",
+    ):
+        fresh_q = md_live.fetch_live_quote(target_sym, fallbacks=fbs, include_intraday_fallback=True)
+        lq_store = dict(st.session_state.get("live_quotes") or {})
+        lq_store[target_sym] = fresh_q
+        st.session_state["live_quotes"] = lq_store
+        st.rerun()
+
+    grid_lq = (st.session_state.get("live_quotes") or {}).get(target_sym)
+    reg_px = float(df_live["Close"].iloc[-1]) if not df_live.empty else float(s2["anchor_price_live"])
+    if use_ext_anchor and grid_lq and grid_lq.get("latest_price") is not None:
+        last_px = float(grid_lq["latest_price"])
+        if grid_lq.get("ext_session") and grid_lq.get("ext_price") is not None:
+            st.caption(
+                f"Anchored to {grid_lq['ext_session']}-MKT ${last_px:,.2f} "
+                f"({_fmt_pct(grid_lq.get('ext_change_pct'))} vs Regular ${grid_lq.get('regular_price') or reg_px:,.2f}) "
+                f"· Updated {grid_lq.get('fetched_at', '')}"
+            )
+    else:
+        last_px = reg_px
     ladder = build_live_grid_order_ladder(
         last_price=last_px,
         live_atr=float(s2["live_atr14"]),

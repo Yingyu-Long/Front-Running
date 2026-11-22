@@ -94,6 +94,9 @@ def run_full_analysis_pipeline(
     ohlcv_map, resolved_map = md_fetcher.fetch_universe(
         u_cfg, extra_symbols=holding_syms, force_refresh=force_refresh_data
     )
+    live_quotes = md_fetcher.fetch_live_quotes_batch(
+        u_cfg, extra_symbols=holding_syms, include_benchmarks=True
+    )
 
     # --- Stage 2: Fundamentals + SEC EDGAR + Financial News ---
     _emit(0.18, "[2/8] 拉取财务基本面、财报日历风控、SEC 官方公告与最新新闻...")
@@ -237,6 +240,7 @@ def run_full_analysis_pipeline(
             "news": news_map.get(sym) or [],
             "analog": an,
             "ml_alpha": ml,
+            "extended_quote": live_quotes.get(sym),
             **comp,
             "trade_ticket": ticket,
         }
@@ -316,6 +320,7 @@ def run_full_analysis_pipeline(
             "vram_total_gb": dev_profile.vram_total_gb,
         },
         "regime": regime,
+        "live_quotes": live_quotes,
         "stocks": stock_analyses,
         "holdings_diagnosis": holdings_diagnosis,
         "sector_rankings": sector_rankings,
@@ -374,6 +379,7 @@ def run_on_demand_single_ticker_check(
     df, resolved = md.fetch_one(sym)
     if df.empty:
         return {"symbol": sym, "error": f"未能获取到 {sym} 的行情数据，请检查美股代码是否正确。"}
+    ext_quote = md.fetch_live_quote(sym, fallbacks=[resolved], include_intraday_fallback=True)
 
     qqq_df, _ = md.fetch_one("QQQ")
     soxx_df, _ = md.fetch_one("SOXX")
@@ -437,6 +443,7 @@ def run_on_demand_single_ticker_check(
         "sec": sec,
         "news": news,
         "analog": analog,
+        "extended_quote": ext_quote,
         **comp,
         "trade_ticket": ticket,
     }

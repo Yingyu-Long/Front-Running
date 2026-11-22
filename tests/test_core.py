@@ -156,6 +156,75 @@ class TestBilingualUIAndPrompts(unittest.TestCase):
         self.assertIn("本周波段交易执行计划", pm_zh)
 
 
+class TestExtendedHoursQuotes(unittest.TestCase):
+    """Verify pre-market / after-hours extended quote extraction from Yahoo info payloads."""
+
+    def test_pre_post_regular_and_closed_selection(self) -> None:
+        from src.data.market_data import extract_extended_quote_from_info
+
+        # Pre-market session active
+        q_pre = extract_extended_quote_from_info(
+            "NVDA",
+            {
+                "marketState": "PRE",
+                "regularMarketPrice": 140.0,
+                "regularMarketPreviousClose": 138.0,
+                "preMarketPrice": 143.5,
+                "preMarketTime": 1700000200,
+                "postMarketPrice": 140.2,
+                "postMarketTime": 1700000100,
+            },
+        )
+        self.assertEqual(q_pre["ext_session"], "PRE")
+        self.assertAlmostEqual(q_pre["ext_price"], 143.5)
+        self.assertAlmostEqual(q_pre["ext_change_pct"], 2.5)
+        self.assertAlmostEqual(q_pre["latest_price"], 143.5)
+
+        # After-hours session active
+        q_post = extract_extended_quote_from_info(
+            "GOOG",
+            {
+                "marketState": "POST",
+                "regularMarketPrice": 200.0,
+                "regularMarketPreviousClose": 198.0,
+                "postMarketPrice": 196.0,
+                "postMarketTime": 1700000500,
+            },
+        )
+        self.assertEqual(q_post["ext_session"], "POST")
+        self.assertAlmostEqual(q_post["ext_price"], 196.0)
+        self.assertAlmostEqual(q_post["ext_change_pct"], -2.0)
+
+        # Regular session live -> no stale extended session shown
+        q_reg = extract_extended_quote_from_info(
+            "STX",
+            {
+                "marketState": "REGULAR",
+                "regularMarketPrice": 110.0,
+                "regularMarketPreviousClose": 100.0,
+                "preMarketPrice": 105.0,
+            },
+        )
+        self.assertIsNone(q_reg["ext_session"])
+        self.assertAlmostEqual(q_reg["regular_change_pct"], 10.0)
+        self.assertAlmostEqual(q_reg["latest_price"], 110.0)
+
+        # Closed market -> picks newer timestamp between pre and post
+        q_closed = extract_extended_quote_from_info(
+            "AMZN",
+            {
+                "marketState": "CLOSED",
+                "regularMarketPrice": 200.0,
+                "preMarketPrice": 202.0,
+                "preMarketTime": 1700000900,
+                "postMarketPrice": 199.0,
+                "postMarketTime": 1700000400,
+            },
+        )
+        self.assertEqual(q_closed["ext_session"], "PRE")
+        self.assertAlmostEqual(q_closed["ext_price"], 202.0)
+
+
 @unittest.skipUnless(HAS_NUMPY_PANDAS, "numpy/pandas not installed in current host Python")
 class TestQuantNumericalEngines(unittest.TestCase):
     """Full synthetic-market numerical verification of indicators, GPU analog, MC risk & tickets."""

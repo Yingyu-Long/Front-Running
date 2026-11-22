@@ -6,6 +6,7 @@ import logging
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -60,6 +61,106 @@ def _normalize_ohlcv(df: pd.DataFrame) -> pd.DataFrame:
     out["High"] = out[["High", "Open", "Close"]].max(axis=1)
     out["Low"] = out[["Low", "Open", "Close"]].min(axis=1)
     return out
+
+
+def _safe_pos_float(val: Any) -> float | None:
+    try:
+        if val is None or pd.isna(val):
+            return None
+        f = float(val)
+        return f if np.isfinite(f) and f > 0 else None
+    except Exception:
+        return None
+
+
+def _safe_int(val: Any) -> int:
+    try:
+        if val is None or pd.isna(val):
+            return 0
+        return int(val)
+    except Exception:
+        return 0
+
+
+def _pct_vs_ref(price: float | None, ref: float | None) -> float | None:
+    if price is None or ref is None or ref <= 0:
+        return None
+    return round((price / ref - 1.0) * 100.0, 2)
+
+
+def extract_extended_quote_from_info(
+    symbol: str,
+    info: dict[str, Any] | None,
+    resolved_symbol: str | None = None,
+) -> dict[str, Any]:
+    """Parse regular, pre-market, and after-hours quote fields from a yfinance info dict."""
+    meta = info or {}
+    sym = symbol.upper().strip()
+    resolved = (resolved_symbol or sym).upper().strip()
+
+    raw_state = str(meta.get("marketState") or "UNKNOWN").upper().strip()
+    reg_px = (
+        _safe_pos_float(meta.get("regularMarketPrice"))
+        or _safe_pos_float(meta.get("currentPrice"))
+        or _safe_pos_float(meta.get("previousClose"))
+    )
+    prev_close = (
+        _safe_pos_float(meta.get("regularMarketPreviousClose"))
+        or _safe_pos_float(meta.get("previousClose"))
+    )
+    reg_chg_pct = _pct_vs_ref(reg_px, prev_close)
+
+    pre_px = _safe_pos_float(meta.get("preMarketPrice"))
+    post_px = _safe_pos_float(meta.get("postMarketPrice"))
+    pre_ts = _safe_int(meta.get("preMarketTime"))
+    post_ts = _safe_int(meta.get("postMarketTime"))
+
+    # Anchor extended-hours % change against regular market price (or previous close)
+    ext_ref = reg_px or prev_close
+    pre_chg_pct = _pct_vs_ref(pre_px, ext_ref)
+    post_chg_pct = _pct_vs_ref(post_px, ext_ref)
+
+    # Determine which extended session is currently active or most recent
+    ext_session: str | None = None
+    ext_px: float | None = None
+    ext_chg_pct: float | None = None
+
+    if raw_state in ("PRE", "PREPRE"):
+        if pre_px is not None:
+            ext_session, ext_px, ext_chg_pct = "PRE", pre_px, pre_chg_pct
+    elif raw_state in ("POST", "POSTPOST"):
+        if post_px is not None:
+            ext_session, ext_px, ext_chg_pct = "POST", post_px, post_chg_pct
+    elif raw_state != "REGULAR":
+        # Market closed / unknown: pick whichever extended quote has the newer timestamp
+        if pre_px is not None and post_px is not None:
+            if pre_ts >= post_ts and pre_ts > 0:
+                ext_session, ext_px, ext_chg_pct = "PRE", pre_px, pre_chg_pct
+            else:
+                ext_session, ext_px, ext_chg_pct = "POST", post_px, post_chg_pct
+        elif pre_px is not None:
+            ext_session, ext_px, ext_chg_pct = "PRE", pre_px, pre_chg_pct
+        elif post_px is not None:
+            ext_session, ext_px, ext_chg_pct = "POST", post_px, post_chg_pct
+
+    latest_px = ext_px if ext_px is not None else reg_px
+
+    return {
+        "symbol": sym,
+        "resolved_symbol": resolved,
+        "market_state": raw_state,
+        "regular_price": round(reg_px, 2) if reg_px is not None else None,
+        "regular_change_pct": reg_chg_pct,
+        "pre_price": round(pre_px, 2) if pre_px is not None else None,
+        "pre_change_pct": pre_chg_pct,
+        "post_price": round(post_px, 2) if post_px is not None else None,
+        "post_change_pct": post_chg_pct,
+        "ext_session": ext_session,
+        "ext_price": round(ext_px, 2) if ext_px is not None else None,
+        "ext_change_pct": ext_chg_pct,
+        "latest_price": round(latest_px, 2) if latest_px is not None else None,
+        "fetched_at": datetime.now().strftime("%H:%M:%S"),
+    }
 
 
 def build_aligned_close_matrix(
@@ -220,3 +321,88 @@ class MarketDataFetcher:
                     logger.warning("Universe fetch error: %s", exc)
 
         return ohlcv_map, resolved_map
+
+    def fetch_live_quote(
+        self,
+        symbol: str,
+        fallbacks: list[str] | None = None,
+        include_intraday_fallback: bool = False,
+    ) -> dict[str, Any]:
+        """Fetch live regular + pre-market / after-hours quote without modifying daily OHLCV cache."""
+        sym = symbol.upper().strip()
+        candidates: list[str] = [sym]
+        for fb in fallbacks or []:
+            fb_clean = str(fb).upper().strip()
+            if fb_clean and fb_clean not in candidates:
+                candidates.append(fb_clean)
+
+        if yf is None:
+            return extract_extended_quote_from_info(sym, {}, sym)
+
+        for cand in candidates:
+            try:
+                tk = yf.Ticker(cand)
+                info = tk.info or {}
+                quote = extract_extended_quote_from_info(sym, info, cand)
+                if quote["regular_price"] is not None or quote["ext_price"] is not None:
+                    # Optional prepost=True 1m fallback when Yahoo omits preMarketPrice in .info
+                    if (
+                        include_intraday_fallback
+                        and quote["ext_price"] is None
+                        and quote["market_state"] in ("PRE", "PREPRE", "POST", "POSTPOST")
+                    ):
+                        try:
+                            intra = tk.history(period="2d", interval="1m", prepost=True, actions=False)
+                            if intra is not None and not intra.empty and "Close" in intra.columns:
+                                last_intra = _safe_pos_float(intra["Close"].iloc[-1])
+                                if last_intra is not None:
+                                    sess = "PRE" if quote["market_state"] in ("PRE", "PREPRE") else "POST"
+                                    ref = quote["regular_price"]
+                                    quote["ext_session"] = sess
+                                    quote["ext_price"] = round(last_intra, 2)
+                                    quote["ext_change_pct"] = _pct_vs_ref(last_intra, ref)
+                                    quote["latest_price"] = round(last_intra, 2)
+                                    if sess == "PRE":
+                                        quote["pre_price"] = quote["ext_price"]
+                                        quote["pre_change_pct"] = quote["ext_change_pct"]
+                                    else:
+                                        quote["post_price"] = quote["ext_price"]
+                                        quote["post_change_pct"] = quote["ext_change_pct"]
+                        except Exception:
+                            pass
+                    return quote
+            except Exception as exc:
+                logger.debug("Live quote fetch failed for %s (candidate %s): %s", sym, cand, exc)
+
+        return extract_extended_quote_from_info(sym, {}, sym)
+
+    def fetch_live_quotes_batch(
+        self,
+        universe_cfg: dict[str, Any],
+        extra_symbols: list[str] | None = None,
+        include_benchmarks: bool = True,
+        max_workers: int = 8,
+    ) -> dict[str, dict[str, Any]]:
+        """Concurrently fetch live regular + pre-market/after-hours quotes for watchlist & benchmarks."""
+        u_meta = universe_cfg.get("universe") or {}
+        eq_syms = list(u_meta.keys())
+        bench_syms = ["SPY", "QQQ", "SOXX"] if include_benchmarks else []
+        extras = [str(s).upper().strip() for s in (extra_symbols or []) if s]
+
+        all_syms = list(dict.fromkeys(bench_syms + eq_syms + extras))
+        out: dict[str, dict[str, Any]] = {}
+
+        def _worker(s: str) -> tuple[str, dict[str, Any]]:
+            fbs = list((u_meta.get(s) or {}).get("yahoo_fallbacks") or [])
+            return s, self.fetch_live_quote(s, fallbacks=fbs)
+
+        with ThreadPoolExecutor(max_workers=min(max_workers, max(1, len(all_syms)))) as pool:
+            futs = [pool.submit(_worker, s) for s in all_syms]
+            for fut in as_completed(futs):
+                try:
+                    s, q = fut.result()
+                    out[s] = q
+                except Exception as exc:
+                    logger.debug("Batch live quote error: %s", exc)
+
+        return out
