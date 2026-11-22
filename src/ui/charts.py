@@ -228,34 +228,64 @@ def make_candlestick_trade_chart(
 
 
 def make_regime_gauge(score: float, label: str) -> go.Figure:
-    """Compact broker-style Market Regime radial dial."""
-    bar_color = GREEN if score >= 65 else (AMBER if score >= 45 else RED)
+    """Compact broker-style Market Regime radial dial with pointer and active-zone highlight."""
+    clamped = max(0.0, min(100.0, float(score)))
+    zones = [
+        (0, 42, "246, 70, 93", RED),       # Risk-Off / Bearish
+        (42, 58, "240, 185, 11", AMBER),   # Choppy / Defensive
+        (58, 75, "41, 98, 255", BLUE),     # Selective Bull
+        (75, 100, "14, 203, 129", GREEN),  # Bull Expansion
+    ]
+
+    active_color = RED
+    steps = []
+    for lo, hi, rgb, hex_col in zones:
+        is_active = (lo <= clamped < hi) or (hi == 100 and clamped >= 75)
+        if is_active:
+            active_color = hex_col
+            steps.append({"range": [lo, hi], "color": f"rgba({rgb}, 0.72)"})
+        else:
+            steps.append({"range": [lo, hi], "color": f"rgba({rgb}, 0.12)"})
+
+    # Keep the radial pointer fully visible even when score sits right on the 0 or 100 boundary
+    pointer_val = min(99.4, max(0.6, clamped))
+
     fig = go.Figure(
         go.Indicator(
             mode="gauge+number",
-            value=score,
-            number={"suffix": "", "font": {"size": 30, "color": TEXT_COLOR, "family": "JetBrains Mono, monospace"}},
+            value=clamped,
+            number={
+                "suffix": " /100",
+                "font": {"size": 26, "color": active_color, "family": "JetBrains Mono, monospace"},
+            },
             title={"text": label, "font": {"size": 12.5, "color": TEXT_COLOR}},
             gauge={
-                "axis": {"range": [0, 100], "tickwidth": 1, "tickcolor": MUTED_TEXT},
-                "bar": {"color": bar_color, "thickness": 0.32},
+                "axis": {
+                    "range": [0, 100],
+                    "tickmode": "array",
+                    "tickvals": [0, 25, 42, 58, 75, 100],
+                    "tickwidth": 1,
+                    "tickcolor": MUTED_TEXT,
+                    "tickfont": {"size": 10, "color": MUTED_TEXT},
+                },
+                "bar": {"color": active_color, "thickness": 0.22},
                 "bgcolor": PANEL_BG,
                 "borderwidth": 1,
                 "bordercolor": GRID_COLOR,
-                "steps": [
-                    {"range": [0, 42], "color": "rgba(246, 70, 93, 0.20)"},
-                    {"range": [42, 58], "color": "rgba(240, 185, 11, 0.18)"},
-                    {"range": [58, 75], "color": "rgba(41, 98, 255, 0.18)"},
-                    {"range": [75, 100], "color": "rgba(14, 203, 129, 0.22)"},
-                ],
+                "steps": steps,
+                "threshold": {
+                    "line": {"color": "#FFFFFF", "width": 4},
+                    "thickness": 1.0,
+                    "value": pointer_val,
+                },
             },
         )
     )
     fig.update_layout(
         paper_bgcolor=DARK_BG,
         font=dict(color=TEXT_COLOR),
-        height=225,
-        margin=dict(l=18, r=18, t=38, b=8),
+        height=230,
+        margin=dict(l=22, r=22, t=40, b=10),
     )
     return fig
 
