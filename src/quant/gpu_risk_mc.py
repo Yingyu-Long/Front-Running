@@ -187,7 +187,7 @@ def run_gpu_portfolio_risk_mc(
         sl = str((s_meta.get(sk) or {}).get("label", sk))
         sector_weights[sl] = round(sector_weights.get(sl, 0.0) + val / total_nav * 100.0, 1)
     if cash_usd > 0:
-        sector_weights["💵 现金储备 (Cash)"] = round(cash_usd / total_nav * 100.0, 1)
+        sector_weights["现金储备 (Cash)"] = round(cash_usd / total_nav * 100.0, 1)
 
     risk_breakdown = []
     for i, sym in enumerate(usable_syms):

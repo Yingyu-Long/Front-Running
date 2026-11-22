@@ -303,7 +303,7 @@ def analyze_stock_technicals(
         rs_score += max(-15.0, min(15.0, rs_sec_21d * 1.3))
     rs_score = round(max(5.0, min(98.0, rs_score)), 1)
 
-    # Crash Classifier: "错杀抄底 vs 接飞刀"
+    # Crash Classifier: Mispriced Dip Buy vs. Falling Knife
     crash_info = classify_crash_vs_knife(
         dd_from_52w_high=dd_from_52w_high,
         pos_in_52w=pos_in_52w,
@@ -383,9 +383,9 @@ def classify_crash_vs_knife(
 ) -> dict[str, Any]:
     """
     Distinguish between:
-      - Falling Knife (放量破位下行，机构派发未结束 -> 禁止盲目抄底)
-      - Oversold Watch / Left-side Stabilization (超卖但仍缺右侧止跌确认)
-      - High-Probability Mispriced Pullback (基本面稳健 + 情绪超卖 + 抛压衰竭)
+      - Falling Knife (high-volume breakdown, ongoing institutional distribution -> avoid catching)
+      - Oversold Watch / Left-side Stabilization (oversold but lacking right-side confirmation)
+      - High-Probability Mispriced Pullback (solid fundamentals + oversold sentiment + selling exhaustion)
       - Healthy Uptrend / Breakout Setup
     """
     in_deep_drawdown = dd_from_52w_high <= -18.0 or pos_in_52w <= 22.0 or ret_5d <= -7.0
@@ -394,7 +394,7 @@ def classify_crash_vs_knife(
     if not in_deep_drawdown and stage_num == 2:
         return {
             "status": "UPTREND_HEALTHY",
-            "badge": "🔵 上升趋势/常规波段",
+            "badge": "上升趋势/常规波段",
             "knife_risk_score": 20,
             "reason": "未处于深幅回撤，处于 Stage 2 正常上升结构，按趋势回踩或突破策略操作。",
         }
@@ -434,13 +434,13 @@ def classify_crash_vs_knife(
 
     if knife_risk >= 68:
         status = "FALLING_KNIFE"
-        badge = "🔴 警惕接飞刀 (禁左侧重仓)"
+        badge = "警惕接飞刀 (禁左侧重仓)"
     elif knife_risk >= 45:
         status = "LEFT_SIDE_WATCH"
-        badge = "🟡 左侧超卖观察 (等止跌放量阳线)"
+        badge = "左侧超卖观察 (等止跌放量阳线)"
     else:
         status = "MISPRICED_PULLBACK"
-        badge = "🟢 高概率错杀回踩 (留意分批低吸)"
+        badge = "高概率错杀回踩 (留意分批低吸)"
 
     return {
         "status": status,

@@ -1,5 +1,5 @@
 # ==============================================================================
-# AI 算力 & 存储产业链核心股票池 + 行业风向标 + 供应链传导图谱
+# AI Compute & Storage Supply-Chain Universe + Bellwethers + Transmission Graph
 # ==============================================================================
 
 benchmarks:
@@ -46,9 +46,9 @@ sectors:
     chain_tier: 0
     description: "科技回调时的防御底仓，用于平滑组合净值回撤"
 
-# 核心 Watchlist (来自你的自选股) + 产业链风向标 (bellwether: true)
+# Core watchlist + supply-chain bellwethers (bellwether: true)
 universe:
-  # --- 上游云巨头 (CapEx 金主) ---
+  # --- Upstream Cloud Hyperscalers (CapEx Drivers) ---
   GOOG:
     name: "Alphabet (Google)"
     sector: "cloud_ai"
@@ -80,7 +80,7 @@ universe:
     bellwether: true
     notes: "最激进的 AI 算力/网络/存储采购大户，财报 CapEx 指引极关键"
 
-  # --- 中游算力芯片 & 光通信 ---
+  # --- Midstream Compute Chips & Optical Networking ---
   TSM:
     name: "台积电 (TSMC)"
     sector: "compute_optical"
@@ -118,7 +118,7 @@ universe:
     bellwether: false
     notes: "800G/1.6T 高速光模块与光通信核心受益股，高 Beta 弹性标的"
 
-  # --- 下游内存 & 存储周期 (重点区域) ---
+  # --- Downstream Memory & Storage Cycle (Focus Area) ---
   SKHY:
     name: "SK Hynix (SK海力士)"
     sector: "memory_storage"
@@ -151,7 +151,7 @@ universe:
     bellwether: false
     notes: "纯正 NAND Flash / 企业级 SSD 标的，周期弹性极大"
 
-  # --- 高弹性焦点巨头 ---
+  # --- High-Beta Focus Disruptors ---
   ANT:
     name: "ANT (焦点新星)"
     sector: "mega_disruptors"
@@ -165,7 +165,7 @@ universe:
     bellwether: false
     notes: "高波动焦点巨头标的"
 
-  # --- 防御压舱石 ---
+  # --- Defensive Hedge ---
   MCD:
     name: "McDonald's (麦当劳)"
     sector: "defensive"
@@ -173,7 +173,7 @@ universe:
     bellwether: false
     notes: "消费防御底仓，与半导体/AI 相关性极低，用于降低组合整体波动"
 
-# 产业链上下游传导关系 (source -> target, 供 Lead-Lag 分析与 AI 产业链推理使用)
+# Upstream-to-downstream supply-chain edges (source -> target, for lead-lag analysis & AI reasoning)
 supply_chain_edges:
   - {source: "MSFT", target: "NVDA", logic: "Azure AI CapEx -> GPU 采购"}
   - {source: "META", target: "NVDA", logic: "Meta AI 集群扩建 -> GPU 采购"}
@@ -193,7 +193,7 @@ supply_chain_edges:
   - {source: "MU", target: "SNDK", logic: "美光 NAND 合约价指引 -> 传导至闪迪"}
   - {source: "WDC", target: "STX", logic: "双寡头 HDD 产能利用率与涨价 -> 直接共振"}
 
-# 同赛道配对轮动监控 (用于监测价差 Z-Score 偏离与强弱切换)
+# Intra-sector rotation pairs (for spread Z-Score divergence & relative strength monitoring)
 rotation_pairs:
   - {pair: ["STX", "WDC"], label: "企业级 HDD 双寡头 (STX vs WDC)"}
   - {pair: ["MU", "SKHY"], label: "HBM/DRAM 双雄 (MU vs SKHY)"}

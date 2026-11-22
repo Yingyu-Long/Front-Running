@@ -60,7 +60,6 @@ from src.ui.i18n import (
 
 st.set_page_config(
     page_title="Front-Running",
-    page_icon="⚡",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -442,7 +441,7 @@ def main() -> None:
             st.session_state["active_payload"]["snapshot_id"] = latest["id"]
 
     # ==========================================================================
-    # SINGLE-ROW MINIMAL BROKER HEADER + SLEEK EN / 中文 SWITCH (DEFAULT: EN)
+    # SINGLE-ROW MINIMAL BROKER HEADER + SLEEK EN / ZH SWITCH (DEFAULT: EN)
     # ==========================================================================
     top_c1, top_c2, top_c3 = st.columns([2.0, 4.1, 1.05], vertical_alignment="center")
     with top_c3:
@@ -478,18 +477,18 @@ def main() -> None:
     # LEFT CONTROL SIDEBAR (RTX 5070 Ti Engine + Ollama + Scan Trigger + Snapshots)
     # ==========================================================================
     with st.sidebar:
-        st.markdown(f"### ⚡ {t('sidebar_title', lang)}")
+        st.markdown(f"### {t('sidebar_title', lang)}")
         st.caption(t("sidebar_caption", lang))
 
         if dev.backend == "cuda":
-            st.success(f"🎮 {t('gpu_ready', lang)}: {dev.summary_str()}")
+            st.success(f"{t('gpu_ready', lang)}: {dev.summary_str()}")
             if dev.is_blackwell:
-                st.caption(f"✨ {t('blackwell_note', lang)}")
+                st.caption(f"{t('blackwell_note', lang)}")
         else:
-            st.info(f"💻 {t('gpu_cpu_mode', lang)}: {dev.summary_str()}")
+            st.info(f"{t('gpu_cpu_mode', lang)}: {dev.summary_str()}")
 
         st.divider()
-        st.markdown(f"**🤖 {t('llm_section', lang)}**")
+        st.markdown(f"**{t('llm_section', lang)}**")
         llm_base_url = st.text_input(t("llm_url", lang), value=settings.llm_base_url)
         probe = LocalLLMClient(base_url=llm_base_url, model=settings.llm_model).check_health()
 
@@ -497,13 +496,13 @@ def main() -> None:
             avail_models = probe.get("models") or [settings.llm_model]
             default_idx = avail_models.index(settings.llm_model) if settings.llm_model in avail_models else 0
             llm_model = st.selectbox(t("llm_model", lang), options=avail_models, index=default_idx)
-            st.success(f"🟢 {t('llm_online', lang)} ({len(avail_models)})")
+            st.success(f"{t('llm_online', lang)} ({len(avail_models)})")
         else:
             llm_model = st.text_input(t("llm_model", lang), value=settings.llm_model)
-            st.warning(f"🟡 {t('llm_offline', lang)}")
+            st.warning(f"{t('llm_offline', lang)}")
 
         st.divider()
-        st.markdown(f"**🚀 {t('scan_section', lang)}**")
+        st.markdown(f"**{t('scan_section', lang)}**")
         force_refresh = st.checkbox(t("opt_refresh", lang), value=False)
         opt_ml = st.checkbox(t("opt_ml", lang), value=True)
         opt_bt = st.checkbox(t("opt_bt", lang), value=True)
@@ -540,7 +539,7 @@ def main() -> None:
 
         if payload and payload.get("report_path") and Path(payload["report_path"]).exists():
             st.download_button(
-                f"📄 {t('btn_download_md', lang)}",
+                f"{t('btn_download_md', lang)}",
                 data=Path(payload["report_path"]).read_bytes(),
                 file_name=Path(payload["report_path"]).name,
                 mime="text/markdown",
@@ -548,7 +547,7 @@ def main() -> None:
             )
 
         st.divider()
-        st.markdown(f"**🗂️ {t('snap_section', lang)}**")
+        st.markdown(f"**{t('snap_section', lang)}**")
         snaps = db.list_snapshots(limit=15)
         if snaps:
             labels = [
@@ -636,7 +635,7 @@ def _render_trade_desk_tab(
         wl_h1, wl_h2 = st.columns([1.6, 1.0], vertical_alignment="center")
         wl_h1.markdown(f"**{t('watchlist_hdr', lang)} ({len(display_syms)})**")
         with wl_h2:
-            if st.button("🔄 Quotes" if not is_zh else "🔄 刷报价", use_container_width=True, key="btn_quick_wl_quotes"):
+            if st.button("Quotes" if not is_zh else "刷报价", use_container_width=True, key="btn_quick_wl_quotes"):
                 with st.spinner("Fetching quotes..." if not is_zh else "拉取最新报价..."):
                     md_q = MarketDataFetcher(settings.data_dir, history_years=2)
                     q_map, _ = md_q.fetch_universe(universe_cfg, extra_symbols=list(holding_syms))
@@ -771,7 +770,7 @@ def _render_trade_desk_tab(
                     )
 
         # Quick Watchlist Add / Remove Manager (persists to config/universe.yaml)
-        with st.expander("✏️ Edit Watchlist (+ / -)" if not is_zh else "✏️ 编辑自选股 (+ / -)", expanded=False):
+        with st.expander("Edit Watchlist (+ / -)" if not is_zh else "编辑自选股 (+ / -)", expanded=False):
             new_tk = st.text_input("Add US Ticker" if not is_zh else "添加美股代码", placeholder="e.g. PLTR", key="wl_add_tk").upper().strip()
             new_sec = st.selectbox(
                 "Sector" if not is_zh else "所属赛道",
@@ -779,7 +778,7 @@ def _render_trade_desk_tab(
                 key="wl_add_sec",
             )
             ac1, ac2 = st.columns(2)
-            if ac1.button("➕ Add" if not is_zh else "➕ 添加", use_container_width=True) and new_tk:
+            if ac1.button("Add" if not is_zh else "添加", use_container_width=True) and new_tk:
                 u_copy = dict(universe_cfg)
                 u_copy["universe"] = dict(u_copy.get("universe") or {})
                 u_copy["universe"][new_tk] = {
@@ -793,7 +792,7 @@ def _render_trade_desk_tab(
                 st.session_state["desk_selected_sym"] = new_tk
                 st.rerun()
             rem_tk = st.selectbox("Remove" if not is_zh else "移除代码", options=[""] + list(u_meta.keys()), key="wl_rem_tk")
-            if ac2.button("🗑️ Remove" if not is_zh else "🗑️ 移除", use_container_width=True) and rem_tk:
+            if ac2.button("Remove" if not is_zh else "移除", use_container_width=True) and rem_tk:
                 u_copy = dict(universe_cfg)
                 u_copy["universe"] = dict(u_copy.get("universe") or {})
                 u_copy["universe"].pop(rem_tk, None)
@@ -823,9 +822,9 @@ def _render_trade_desk_tab(
                     use_container_width=True,
                 )
             st.info(
-                f"Click **⚡ RUN FULL SCAN** in the sidebar (or type `{active_sym}` in Lookup) to unlock full GPU Quant Scores, Execution Ticket, 10Y Analogs & 5070 Ti AI Debate."
+                f"Click **RUN FULL SCAN** in the sidebar (or type `{active_sym}` in Lookup) to unlock full GPU Quant Scores, Execution Ticket, 10Y Analogs & 5070 Ti AI Debate."
                 if not is_zh
-                else f"点击左侧 **⚡ 一键启动全量分析**（或点击上方即时体检）即可解锁 `{active_sym}` 的完整 GPU 量化评分、执行单、10年历史胜率与 5070 Ti AI 排雷。"
+                else f"点击左侧 **一键启动全量分析**（或点击上方即时体检）即可解锁 `{active_sym}` 的完整 GPU 量化评分、执行单、10年历史胜率与 5070 Ti AI 排雷。"
             )
         with col_ticket:
             st.markdown(
@@ -836,7 +835,7 @@ def _render_trade_desk_tab(
                         <span class="qb-pill pill-blue">{active_sym}</span>
                     </div>
                     <div style="font-size:0.80rem;color:#7F8EA3;line-height:1.6;">
-                        {'Run a Full Scan or Lookup to calculate Entry Zone, Hard Stop-Loss, 2R/3R Targets & Volatility-Adjusted Position Size.' if not is_zh else '点击左侧「⚡ 一键启动全量分析」后，这里会自动生成参考入场区、硬止损、2R/3R 目标位与建议买入股数。'}
+                        {'Run a Full Scan or Lookup to calculate Entry Zone, Hard Stop-Loss, 2R/3R Targets & Volatility-Adjusted Position Size.' if not is_zh else '点击左侧「一键启动全量分析」后，这里会自动生成参考入场区、硬止损、2R/3R 目标位与建议买入股数。'}
                     </div>
                 </div>
                 """,
@@ -918,7 +917,7 @@ def _render_trade_desk_tab(
         with sub_tabs[0]:
             q1, q2 = st.columns([1.25, 1.0])
             with q1:
-                st.markdown(f"**🛡️ {t('crash_title', lang)}**")
+                st.markdown(f"**{t('crash_title', lang)}**")
                 st.markdown(
                     f"`{crash_str}` &nbsp;|&nbsp; **{t('knife_score_lbl', lang)}**: `{cr.get('knife_risk_score', '-')}/100`"
                 )
@@ -948,7 +947,7 @@ def _render_trade_desk_tab(
                 a3.metric("42D Win Rate" if lang == "en" else "42日胜率", _fmt_pct(an.get("win_rate_42d_pct"), False))
                 a4.metric("Profit Factor" if lang == "en" else "盈亏比 PF", f"{an.get('profit_factor_21d', '-')}")
                 a5.metric("Median MAE" if lang == "en" else "中位最大回撤", _fmt_pct(an.get("median_mae_21d_pct")))
-                st.markdown(f"**⚡ {t('analog_hdr', lang)}**")
+                st.markdown(f"**{t('analog_hdr', lang)}**")
                 if an.get("top_matches"):
                     st.dataframe(pd.DataFrame(an["top_matches"]), use_container_width=True, hide_index=True)
             else:
@@ -964,26 +963,26 @@ def _render_trade_desk_tab(
                 st.success(f"**{t('ai_summary_lbl', lang)}**: {lr.get('one_line_summary', '')}")
                 cb1, cb2 = st.columns(2)
                 with cb1:
-                    st.markdown(f"**🟢 {t('ai_bull_hdr', lang)}**")
+                    st.markdown(f"**{t('ai_bull_hdr', lang)}**")
                     for b in lr.get("bull_thesis") or []:
                         st.markdown(f"- {b}")
                 with cb2:
-                    st.markdown(f"**🔴 {t('ai_bear_hdr', lang)}**")
+                    st.markdown(f"**{t('ai_bear_hdr', lang)}**")
                     for r in lr.get("bear_risks") or []:
                         st.markdown(f"- {r}")
                 if lr.get("catalysts_1_2m"):
-                    st.markdown(f"**📅 {t('ai_cat_hdr', lang)}**: " + " · ".join(lr["catalysts_1_2m"]))
-                st.info(f"**📋 {t('ai_plan_hdr', lang)}**: {lr.get('action_plan_cn', '')}")
+                    st.markdown(f"**{t('ai_cat_hdr', lang)}**: " + " · ".join(lr["catalysts_1_2m"]))
+                st.info(f"**{t('ai_plan_hdr', lang)}**: {lr.get('action_plan_cn', '')}")
             elif lr.get("raw_text"):
                 st.write(lr["raw_text"])
             else:
                 st.caption(lr.get("error") or t("ai_unavailable", lang))
 
         with sub_tabs[3]:
-            st.markdown(f"**🏛️ {t('sec_hdr', lang)}**")
+            st.markdown(f"**{t('sec_hdr', lang)}**")
             st.caption(sec.get("sec_digest", "No SEC EDGAR summary available."))
             for rf in sec.get("red_flag_filings") or []:
-                st.error(f"🚩 {rf}")
+                st.error(f"[FLAG] {rf}")
             for item in (stock_data.get("news") or [])[:7]:
                 link, title = item.get("link") or "", item.get("title") or ""
                 pub, dt = item.get("publisher") or "", (item.get("published") or "")[:10]
@@ -997,7 +996,12 @@ def _render_trade_desk_tab(
         comp_score = float(stock_data.get("composite_score") or 50.0)
         sc_bar_col = "#0ECB81" if comp_score >= 70 else ("#F0B90B" if comp_score >= 52 else "#F6465D")
         sig_text = tr_signal(str(tk.get("action_signal", "")), lang)
-        sig_pill = "pill-green" if "🟢" in sig_text else ("pill-red" if "🔴" in sig_text else "pill-amber")
+        sig_upper = sig_text.upper()
+        sig_pill = (
+            "pill-green"
+            if ("PRIORITY BUY" in sig_upper or "优先买入" in sig_text)
+            else ("pill-red" if ("AVOID KNIFE" in sig_upper or "禁接飞刀" in sig_text) else "pill-amber")
+        )
         ml_prob = _fmt_pct(ml.get("prob_outperform_21d_pct"), False)
         an_wr = _fmt_pct(an.get("win_rate_21d_pct"), False)
 
@@ -1091,7 +1095,7 @@ def _render_scanner_regime_tab(payload: dict[str, Any] | None, lang: str) -> Non
         m2.metric(t("regime_cash", lang), f"{regime.get('suggested_defensive_cash_pct', 40)}%")
         m3.metric(t("regime_vix", lang), f"{rm.get('VIX', '—')}")
         m4.metric(t("regime_us10y", lang), f"{rm.get('US10Y_pct', '—')}%")
-        st.info(f"**🧭 {t('regime_guide_lbl', lang)}**: {r_guide}")
+        st.info(f"**{t('regime_guide_lbl', lang)}**: {r_guide}")
         if lang == "zh":
             for sig in regime.get("signals") or []:
                 st.markdown(f"- {sig}")
@@ -1161,7 +1165,7 @@ def _render_portfolio_risk_tab(
     lang: str,
 ) -> None:
     st.subheader(t("pos_hdr", lang))
-    with st.expander(f"✏️ {t('edit_pos_exp', lang)}", expanded=False):
+    with st.expander(f"{t('edit_pos_exp', lang)}", expanded=False):
         acct = portfolio_cfg.get("account") or {}
         c1, c2, c3, c4 = st.columns(4)
         new_eq = c1.number_input(t("lbl_equity", lang), value=float(acct.get("total_equity_usd", 100000.0)), step=5000.0)
@@ -1173,7 +1177,7 @@ def _render_portfolio_risk_tab(
         if h_df.empty:
             h_df = pd.DataFrame(columns=["symbol", "shares", "avg_cost", "stop_loss", "thesis"])
         edited_df = st.data_editor(h_df, num_rows="dynamic", use_container_width=True)
-        if st.button(f"💾 {t('btn_save_pos', lang)}", type="primary"):
+        if st.button(f"{t('btn_save_pos', lang)}", type="primary"):
             cleaned = []
             for _, row in edited_df.iterrows():
                 sym = str(row.get("symbol", "")).upper().strip()
@@ -1260,9 +1264,9 @@ def _render_portfolio_risk_tab(
     with c3:
         st.plotly_chart(make_correlation_heatmap(risk_mc.get("correlation_matrix") or {}, lang=lang), use_container_width=True)
     with c4:
-        st.markdown(f"#### 💥 {t('stress_hdr', lang)}")
+        st.markdown(f"#### {t('stress_hdr', lang)}")
         st.dataframe(pd.DataFrame(risk_mc.get("stress_tests") or []), use_container_width=True, hide_index=True)
-        st.markdown(f"#### 🧩 {t('sector_wt_hdr', lang)}")
+        st.markdown(f"#### {t('sector_wt_hdr', lang)}")
         sw = risk_mc.get("sector_weights") or {}
         st.dataframe(pd.DataFrame([{"Sector": k, "NAV %": v} for k, v in sw.items()]), use_container_width=True, hide_index=True)
 
@@ -1277,30 +1281,30 @@ def _render_supply_chain_tab(payload: dict[str, Any] | None, lang: str) -> None:
 
     sc_rep = (payload.get("llm") or {}).get("supply_chain_report") or {}
     if sc_rep and not sc_rep.get("error") and not sc_rep.get("parse_error"):
-        st.subheader(f"🤖 {t('sc_ai_hdr', lang)} · {t('sc_temp', lang)}: {sc_rep.get('chain_temperature', '—')}")
+        st.subheader(f"{t('sc_ai_hdr', lang)} · {t('sc_temp', lang)}: {sc_rep.get('chain_temperature', '—')}")
         c1, c2 = st.columns(2)
-        c1.info(f"**☁️ {t('sc_capex', lang)}**: {sc_rep.get('capex_verdict', '')}")
-        c2.info(f"**💾 {t('sc_storage', lang)}**: {sc_rep.get('storage_cycle_verdict', '')}")
+        c1.info(f"**{t('sc_capex', lang)}**: {sc_rep.get('capex_verdict', '')}")
+        c2.info(f"**{t('sc_storage', lang)}**: {sc_rep.get('storage_cycle_verdict', '')}")
         c3, c4 = st.columns(2)
         with c3:
-            st.markdown(f"**📡 {t('sc_leadlag_ops', lang)}**")
+            st.markdown(f"**{t('sc_leadlag_ops', lang)}**")
             for x in sc_rep.get("lead_lag_opportunities") or []:
                 st.markdown(f"- {x}")
         with c4:
-            st.markdown(f"**🚨 {t('sc_redflags', lang)}**")
+            st.markdown(f"**{t('sc_redflags', lang)}**")
             for x in sc_rep.get("chain_red_flags") or []:
                 st.markdown(f"- {x}")
-        st.success(f"**🏆 {t('sc_top_pick', lang)}**: {sc_rep.get('top_sector_pick', '')}")
+        st.success(f"**{t('sc_top_pick', lang)}**: {sc_rep.get('top_sector_pick', '')}")
         st.divider()
 
-    st.subheader(f"🏆 {t('peer_rank_hdr', lang)}")
+    st.subheader(f"{t('peer_rank_hdr', lang)}")
     for sec_label, items in (payload.get("sector_rankings") or {}).items():
         with st.expander(f"{sec_label} ({len(items)})", expanded=True):
             st.dataframe(pd.DataFrame(items), use_container_width=True, hide_index=True)
 
     p1, p2 = st.columns(2)
     with p1:
-        st.subheader(f"⚖️ {t('pair_hdr', lang)}")
+        st.subheader(f"{t('pair_hdr', lang)}")
         pairs = payload.get("rotation_pairs") or []
         if pairs:
             st.dataframe(
@@ -1309,7 +1313,7 @@ def _render_supply_chain_tab(payload: dict[str, Any] | None, lang: str) -> None:
                 hide_index=True,
             )
     with p2:
-        st.subheader(f"🔗 {t('ll_hdr', lang)}")
+        st.subheader(f"{t('ll_hdr', lang)}")
         ll = payload.get("lead_lag") or []
         if ll:
             st.dataframe(
@@ -1328,7 +1332,7 @@ def _render_backtest_ml_tab(payload: dict[str, Any] | None, lang: str) -> None:
         return
 
     bt = payload.get("backtest") or {}
-    st.subheader(f"📈 {t('bt_hdr', lang)}")
+    st.subheader(f"{t('bt_hdr', lang)}")
     if bt.get("available"):
         best = bt["best_strategy"]
         m1, m2, m3, m4, m5, m6 = st.columns(6)
@@ -1349,7 +1353,7 @@ def _render_backtest_ml_tab(payload: dict[str, Any] | None, lang: str) -> None:
 
     st.divider()
     ml = payload.get("ml_alpha") or {}
-    st.subheader(f"🧠 {t('ml_hdr', lang)}")
+    st.subheader(f"{t('ml_hdr', lang)}")
     if ml.get("available"):
         oos = ml.get("oos_validation") or {}
         c1, c2, c3, c4 = st.columns(4)
@@ -1375,7 +1379,7 @@ def _render_grid_lab_tab(
     lang: str,
 ) -> None:
     is_zh = lang == "zh"
-    st.markdown(f"### 🕸️ {t('grid_title', lang)}")
+    st.markdown(f"### {t('grid_title', lang)}")
 
     all_eq = get_all_equity_symbols(universe_cfg)
     holding_map = {
@@ -1451,9 +1455,9 @@ def _render_grid_lab_tab(
             st.dataframe(df_s1, use_container_width=True, hide_index=True, height=390)
     else:
         st.info(
-            "Click **⚡ Scan Watchlist for Grid Suitability** to objectively score every ticker via PyTorch CUDA Hurst Exponent, Liquidity/Gap Risk, and 1% Grid Frequency."
+            "Click **Scan Watchlist for Grid Suitability** to objectively score every ticker via PyTorch CUDA Hurst Exponent, Liquidity/Gap Risk, and 1% Grid Frequency."
             if not is_zh
-            else "点击上方 **⚡ 一键扫描 Watchlist 网格适配度**，调用 PyTorch CUDA 对自选股全部做客观打分（若都不适合会直接红字劝退）。"
+            else "点击上方 **一键扫描 Watchlist 网格适配度**，调用 PyTorch CUDA 对自选股全部做客观打分（若都不适合会直接红字劝退）。"
         )
 
     st.divider()
@@ -1575,7 +1579,7 @@ def _render_grid_lab_tab(
             use_container_width=True,
         )
 
-    st.markdown("**🏆 Top 5 Distinct Parameter Plateau Champions**" if not is_zh else "**🏆 SciPy 4D 高斯滤波精选 Top 5 参数高原组合**")
+    st.markdown("**Top 5 Distinct Parameter Plateau Champions**" if not is_zh else "**SciPy 4D 高斯滤波精选 Top 5 参数高原组合**")
     st.dataframe(
         pd.DataFrame(
             [
@@ -1608,15 +1612,15 @@ def _render_grid_lab_tab(
     if s3 and s3.get("available"):
         if s3.get("any_passed"):
             st.success(
-                f"✅ Champion `{s3['champion_config_id']}` PASSED the < {s3['break_rate_limit_pct']}% Break-Rate stress gate across {s3['total_simulations']:,} parallel-universe simulations ({s3['elapsed_ms']}ms on {str(s3['backend']).upper()})."
+                f"Champion `{s3['champion_config_id']}` PASSED the < {s3['break_rate_limit_pct']}% Break-Rate stress gate across {s3['total_simulations']:,} parallel-universe simulations ({s3['elapsed_ms']}ms on {str(s3['backend']).upper()})."
                 if not is_zh
-                else f"✅ 最优组合 `{s3['champion_config_id']}` 在 {s3['total_simulations']:,} 次平行宇宙模拟中通过 < {s3['break_rate_limit_pct']}% 破网率底线（{str(s3['backend']).upper()} 耗时 {s3['elapsed_ms']}ms）。"
+                else f"最优组合 `{s3['champion_config_id']}` 在 {s3['total_simulations']:,} 次平行宇宙模拟中通过 < {s3['break_rate_limit_pct']}% 破网率底线（{str(s3['backend']).upper()} 耗时 {s3['elapsed_ms']}ms）。"
             )
         else:
             st.error(
-                f"❌ WARNING: ALL Top-5 configs EXCEEDED your {s3['break_rate_limit_pct']}% break-rate limit under 10,000 parallel futures! Widen grid range, lower leverage, or rely strictly on the Stage-4 ML Crash Switch."
+                f"WARNING: ALL Top-5 configs EXCEEDED your {s3['break_rate_limit_pct']}% break-rate limit under 10,000 parallel futures! Widen grid range, lower leverage, or rely strictly on the Stage-4 ML Crash Switch."
                 if not is_zh
-                else f"❌ 严格风控预警：Top 5 候选组合在 10,000 条平行宇宙中的破网率均高于 {s3['break_rate_limit_pct']}% 底线！请拓宽区间或强制结合阶段四 ML 防暴跌开关，切勿盲目满仓跑网格。"
+                else f"严格风控预警：Top 5 候选组合在 10,000 条平行宇宙中的破网率均高于 {s3['break_rate_limit_pct']}% 底线！请拓宽区间或强制结合阶段四 ML 防暴跌开关，切勿盲目满仓跑网格。"
             )
 
         st.dataframe(
@@ -1722,7 +1726,7 @@ def _render_grid_lab_tab(
                 use_container_width=True,
             )
     with col_g2:
-        st.markdown(f"**📋 {t('grid_ladder_hdr', lang)} (`{target_sym}`)**")
+        st.markdown(f"**{t('grid_ladder_hdr', lang)} (`{target_sym}`)**")
         ord_df = pd.DataFrame(ladder["orders"]).rename(
             columns={
                 "side": "方向" if is_zh else "Side",
@@ -1741,7 +1745,7 @@ def _render_grid_lab_tab(
 # TAB 7: TRADE JOURNAL
 # ==============================================================================
 def _render_journal_tab(db: TradingDB, lang: str) -> None:
-    st.subheader(f"📓 {t('jrn_hdr', lang)}")
+    st.subheader(f"{t('jrn_hdr', lang)}")
     with st.form("add_journal_form", clear_on_submit=True):
         c1, c2, c3, c4, c5 = st.columns(5)
         j_sym = c1.text_input(t("jrn_sym", lang), placeholder="STX").upper().strip()
@@ -1761,7 +1765,7 @@ def _render_journal_tab(db: TradingDB, lang: str) -> None:
         j_tag = c8.selectbox(t("jrn_tag", lang), tags)
         j_notes = st.text_area(t("jrn_notes", lang))
 
-        if st.form_submit_button(f"📝 {t('jrn_submit', lang)}", type="primary") and j_sym:
+        if st.form_submit_button(f"{t('jrn_submit', lang)}", type="primary") and j_sym:
             db.add_journal_entry(
                 symbol=j_sym,
                 action=j_act,
@@ -1787,7 +1791,7 @@ def _render_journal_tab(db: TradingDB, lang: str) -> None:
 # TAB 7: DESK GUIDE (BILINGUAL)
 # ==============================================================================
 def _render_guide_tab(dev: Any, lang: str) -> None:
-    st.subheader(f"⚙️ {t('guide_hdr', lang)}")
+    st.subheader(f"{t('guide_hdr', lang)}")
     if lang == "zh":
         st.markdown(
             f"""
@@ -1802,7 +1806,7 @@ def _render_guide_tab(dev: Any, lang: str) -> None:
             f"""
             ### Active Hardware Backend: `{dev.summary_str()}`
             - **16GB GDDR7 VRAM Handoff**: PyTorch CUDA quant, 100k Monte Carlo, ML & 288-combo backtest execute first → VRAM is cleanly purged → Ollama 14B/32B local LLM runs with zero OOM risk.
-            - **On-Demand Workflow (No 24/7 PC Needed)**: Boot twice a week (Sunday review + mid-week volatility spikes), click **⚡ RUN FULL SCAN**, review your **Trade Desk** & **Execution Tickets**, export `.md`, and shut down.
+            - **On-Demand Workflow (No 24/7 PC Needed)**: Boot twice a week (Sunday review + mid-week volatility spikes), click **RUN FULL SCAN**, review your **Trade Desk** & **Execution Tickets**, export `.md`, and shut down.
             - **Instant Bilingual Toggle**: Use the top-right **`EN ⇄ 中文`** slider anytime (defaults to English broker UI; also guides the local 5070 Ti LLM report language on the next scan).
             """
         )

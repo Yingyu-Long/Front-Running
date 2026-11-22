@@ -203,15 +203,15 @@ def build_trade_ticket(
     comp_score = float(composite["composite_score"])
     crash_status = (tech.get("crash_analysis") or {}).get("status", "")
     if crash_status == "FALLING_KNIFE":
-        action_signal = "🔴 观望/禁接飞刀"
+        action_signal = "观望/禁接飞刀"
     elif comp_score >= 72 and rr_t1 >= min_rr and regime.get("regime_score", 50) >= 45:
-        action_signal = "🟢 优先买入候选"
+        action_signal = "优先买入候选"
     elif comp_score >= 60 and rr_t1 >= min_rr:
-        action_signal = "🟡 择机低吸/分批试仓"
+        action_signal = "择机低吸/分批试仓"
     elif comp_score >= 48:
-        action_signal = "⚪ 跟踪观察"
+        action_signal = "跟踪观察"
     else:
-        action_signal = "🟠 偏弱回避"
+        action_signal = "偏弱回避"
 
     return {
         "symbol": symbol,
@@ -284,7 +284,7 @@ def diagnose_active_holdings(
                     "dist_to_stop_pct": None,
                     "risk_contribution_pct": None,
                     "earnings_flag": "待刷新",
-                    "action": "⚪ 待刷新行情",
+                    "action": "待刷新行情",
                     "rationale": "未能拉取该标的最新行情",
                     "thesis": thesis,
                 }
@@ -314,37 +314,37 @@ def diagnose_active_holdings(
         # Action Directive Logic
         reasons: list[str] = []
         if close <= active_stop:
-            action = "🚨 触发止损线 · 建议减仓/止损"
+            action = "触发止损线 · 建议减仓/止损"
             reasons.append(f"现价 ${close:.2f} 已跌破风控止损线 ${active_stop:.2f}")
         elif crash.get("status") == "FALLING_KNIFE" and info.get("sector") != "defensive":
-            action = "🔴 破位警戒 · 逢反抽减仓/严守止损"
+            action = "破位警戒 · 逢反抽减仓/严守止损"
             reasons.append("放量破位下跌，禁止盲目摊平补仓")
         elif info.get("sector") == "defensive":
             if regime.get("regime_score", 50) < 55:
-                action = "🛡️ 坚守防御底仓"
+                action = "坚守防御底仓"
                 reasons.append("当前科技逆风期，防御底仓有效平滑净值回撤")
             else:
-                action = "🟢 持有底仓 (进攻期可适度置换至高分龙头)"
+                action = "持有底仓 (进攻期可适度置换至高分龙头)"
                 reasons.append("大盘回暖，可保留底仓或小幅腾挪资金")
         elif comp_score >= 68:
             if pnl_pct is not None and pnl_pct >= 15.0:
-                action = "🟢 强势持有 · 上移移动止盈"
+                action = "强势持有 · 上移移动止盈"
                 reasons.append(f"趋势与综合分({comp_score})强，建议移动止盈保护利润至 ${trail_stop:.2f}")
             else:
-                action = "🟢 核心持有 · 逢回踩可加仓"
+                action = "核心持有 · 逢回踩可加仓"
                 reasons.append(f"综合评分 {comp_score}，趋势与筹码结构健康")
         elif comp_score >= 52:
-            action = "🟡 持有观察 · 守住止损线"
+            action = "持有观察 · 守住止损线"
             reasons.append(f"处于震荡整理区，严守 ${active_stop:.2f} 止损")
         else:
-            action = "🟠 弱势预警 · 考虑去弱留强"
+            action = "弱势预警 · 考虑去弱留强"
             reasons.append(f"综合评分偏低({comp_score})，若反弹无力建议换仓至同赛道更强标的")
 
         days_to_ed = fund.get("days_to_earnings")
         if days_to_ed is not None and days_to_ed <= 10:
-            reasons.append(f"⚠️ 距财报仅 {days_to_ed} 天，提前规划持仓过财报仓位")
+            reasons.append(f"距财报仅 {days_to_ed} 天，提前规划持仓过财报仓位")
         if risk_contrib is not None and risk_contrib >= 28.0:
-            reasons.append(f"⚠️ 单股贡献了组合 {risk_contrib:.1f}% 的总风险，集中度偏高")
+            reasons.append(f"单股贡献了组合 {risk_contrib:.1f}% 的总风险，集中度偏高")
 
         rows.append(
             {

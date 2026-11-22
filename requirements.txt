@@ -1,8 +1,8 @@
 # ==============================================================================
-# 核心依赖 (PyTorch CUDA 12.8 Blackwell 专用包请通过 scripts/setup_wsl_5070ti.sh 安装)
+# Core Dependencies (install PyTorch CUDA 12.8 for Blackwell via scripts/setup_wsl_5070ti.sh)
 # ==============================================================================
 
-# 科学计算与数据处理
+# Scientific computing and data processing
 numpy>=1.26.4,<2.3.0
 pandas>=2.2.2
 scipy>=1.13.0
@@ -11,24 +11,24 @@ PyYAML>=6.0.2
 python-dotenv>=1.0.1
 pydantic>=2.7.0
 
-# GPU 机器学习 (树模型，原生支持 CUDA 加速)
+# GPU machine learning (tree models with native CUDA acceleration)
 xgboost>=2.1.1
 lightgbm>=4.5.0
 
-# 美股免费行情、基本面与新闻抓取
+# Free US equity market data, fundamentals, and news scraping
 yfinance>=0.2.54
 requests>=2.32.3
 feedparser>=6.0.11
 beautifulsoup4>=4.12.3
 lxml>=5.3.0
 
-# 本地 5070 Ti LLM 接口 (兼容 Ollama / vLLM / OpenAI API)
+# Local RTX 5070 Ti LLM client (compatible with Ollama / vLLM / OpenAI API)
 openai>=1.55.0
 
-# 专业可视化与本地暗黑投研终端 UI
+# Visualization and local dark-mode research terminal UI
 streamlit>=1.40.0
 plotly>=5.24.0
 tabulate>=0.9.0
 
-# 测试
+# Testing
 pytest>=8.3.0

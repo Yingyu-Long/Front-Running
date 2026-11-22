@@ -141,11 +141,11 @@ class TestBilingualUIAndPrompts(unittest.TestCase):
         self.assertIn("交易工作台", t("tab_desk", "zh"))
 
     def test_dynamic_badges_and_prompts(self) -> None:
-        self.assertIn("AVOID KNIFE", tr_signal("🔴 观望/禁接飞刀", "en"))
-        self.assertIn("禁接飞刀", tr_signal("🔴 观望/禁接飞刀", "zh"))
-        self.assertIn("Falling Knife", tr_crash_badge({"status": "FALLING_KNIFE", "badge": "🔴 警惕接飞刀"}, "en"))
+        self.assertIn("AVOID KNIFE", tr_signal("观望/禁接飞刀", "en"))
+        self.assertIn("禁接飞刀", tr_signal("观望/禁接飞刀", "zh"))
+        self.assertIn("Falling Knife", tr_crash_badge({"status": "FALLING_KNIFE", "badge": "警惕接飞刀"}, "en"))
         self.assertIn("CLEAR", tr_earnings_flag({"days_to_earnings": 35}, "en"))
-        self.assertIn("STOP HIT", tr_holding_action("🚨 触发止损线 · 建议减仓/止损", "en"))
+        self.assertIn("STOP HIT", tr_holding_action("触发止损线 · 建议减仓/止损", "en"))
         self.assertIn("BULL EXPANSION", tr_regime_label(80.0, "强势进攻期", "en"))
 
         sc_en, st_en, pm_en = get_prompts("en")

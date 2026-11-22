@@ -22,14 +22,14 @@ from src.engine.orchestrator import run_full_analysis_pipeline
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Front-Running · RTX 5070 Ti 一键全量美股波段投研与离线周报生成器"
+        description="Front-Running - RTX 5070 Ti US equity swing research and offline report generator"
     )
-    parser.add_argument("--force-refresh", action="store_true", help="忽略本地缓存，强制拉取最新行情与SEC/新闻")
-    parser.add_argument("--no-ml", action="store_true", help="跳过 GPU Walk-Forward 机器学习")
-    parser.add_argument("--no-backtest", action="store_true", help="跳过 GPU 288组网格回测")
-    parser.add_argument("--no-llm", action="store_true", help="仅跑纯 GPU 量化，不调用本地 Ollama 大模型")
-    parser.add_argument("--model", type=str, default=None, help="临时覆盖本地 LLM 模型名称 (例如 qwen3:14b)")
-    parser.add_argument("--lang", type=str, default="en", choices=["en", "zh"], help="AI 报告语言 (en 默认英文 / zh 中文)")
+    parser.add_argument("--force-refresh", action="store_true", help="Bypass local cache and fetch fresh market, SEC, and news data")
+    parser.add_argument("--no-ml", action="store_true", help="Skip GPU Walk-Forward machine learning module")
+    parser.add_argument("--no-backtest", action="store_true", help="Skip GPU 288-combo grid backtest")
+    parser.add_argument("--no-llm", action="store_true", help="Run GPU quant only without calling the local Ollama LLM")
+    parser.add_argument("--model", type=str, default=None, help="Temporarily override the local LLM model name (e.g. qwen3:14b)")
+    parser.add_argument("--lang", type=str, default="en", choices=["en", "zh"], help="AI report language (en default / zh Chinese)")
     args = parser.parse_args()
 
     def _progress(pct: float, msg: str) -> None:
@@ -46,9 +46,9 @@ def main() -> None:
     )
 
     print("\n" + "=" * 72)
-    print(f"✅ 全量分析归档完成 (快照 #{payload.get('snapshot_id')}, 总耗时 {payload.get('elapsed_sec')}s)")
-    print(f"🌡️ 大盘与半导体温度: {payload['regime']['regime_score']}/100 — {payload['regime']['regime_label']}")
-    print(f"📄 离线中文报告已导出: {payload.get('report_path')}")
+    print(f"[DONE] Full analysis archived (snapshot #{payload.get('snapshot_id')}, elapsed {payload.get('elapsed_sec')}s)")
+    print(f"Market & Semi Regime: {payload['regime']['regime_score']}/100 - {payload['regime']['regime_label']}")
+    print(f"Offline Markdown report exported: {payload.get('report_path')}")
     print("=" * 72)
 
 

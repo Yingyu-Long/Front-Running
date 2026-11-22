@@ -89,14 +89,14 @@ def run_full_analysis_pipeline(
     all_equities = list(dict.fromkeys(eq_symbols + holding_syms))
 
     # --- Stage 1: Market OHLCV Data ---
-    _emit(0.06, f"📥 [1/8] 拉取美股 {len(all_equities)} 只标的 + 宏观指数 10 年历史行情...")
+    _emit(0.06, f"[1/8] 拉取美股 {len(all_equities)} 只标的 + 宏观指数 10 年历史行情...")
     md_fetcher = MarketDataFetcher(cfg.data_dir, history_years=cfg.history_years)
     ohlcv_map, resolved_map = md_fetcher.fetch_universe(
         u_cfg, extra_symbols=holding_syms, force_refresh=force_refresh_data
     )
 
     # --- Stage 2: Fundamentals + SEC EDGAR + Financial News ---
-    _emit(0.18, "📊 [2/8] 拉取财务基本面、财报日历风控、SEC 官方公告与最新新闻...")
+    _emit(0.18, "[2/8] 拉取财务基本面、财报日历风控、SEC 官方公告与最新新闻...")
     fund_fetcher = FundamentalFetcher(db=db)
     fundamentals_map = fund_fetcher.fetch_batch(
         all_equities, resolved_map=resolved_map, force_refresh=force_refresh_data
@@ -111,7 +111,7 @@ def run_full_analysis_pipeline(
     )
 
     # --- Stage 3: Macro Regime + Technicals & Crash Classifier ---
-    _emit(0.32, "🌡️ [3/8] 计算宏观与半导体温度计、Weinstein周期、机构量价与暴跌排雷分...")
+    _emit(0.32, "[3/8] 计算宏观与半导体温度计、Weinstein周期、机构量价与暴跌排雷分...")
     regime = evaluate_market_regime(ohlcv_map, all_equities)
 
     u_meta = u_cfg.get("universe") or {}
@@ -137,14 +137,14 @@ def run_full_analysis_pipeline(
         )
 
     # --- Stage 4: [GPU Engine #1] Historical Analog Search ---
-    _emit(0.45, f"⚡ [4/8] [{dev_profile.backend.upper()}] 运行 GPU 10年历史相似形态张量检索...")
+    _emit(0.45, f"[4/8] [{dev_profile.backend.upper()}] 运行 GPU 10年历史相似形态张量检索...")
     analog_res = run_gpu_historical_analog_search(
         ohlcv_map, all_equities, window=30, top_k=60, device_pref=cfg.compute_device
     )
 
     # --- Stage 5: [GPU Engine #2] Strict Purged Walk-Forward ML Alpha ---
     if run_ml_alpha:
-        _emit(0.56, f"🧠 [5/8] [{dev_profile.backend.upper()}] 运行 GPU 严格样本外 Walk-Forward 机器学习 (XGBoost CUDA + PyTorch ResMLP)...")
+        _emit(0.56, f"[5/8] [{dev_profile.backend.upper()}] 运行 GPU 严格样本外 Walk-Forward 机器学习 (XGBoost CUDA + PyTorch ResMLP)...")
         ml_res = run_gpu_walkforward_ml_alpha(
             ohlcv_map, all_equities, horizon=21, n_splits=4, device_pref=cfg.compute_device
         )
@@ -152,7 +152,7 @@ def run_full_analysis_pipeline(
         ml_res = {"available": False, "reason": "本次跳过 ML 模块", "per_symbol": {}}
 
     # --- Stage 6: [GPU Engine #3] 100k Student-t Monte Carlo Risk + Supply Chain + Trade Tickets ---
-    _emit(0.68, f"🎲 [6/8] [{dev_profile.backend.upper()}] 运行 {cfg.mc_simulations:,} 路径 Student-t 相关蒙特卡洛风险模拟 & 产业链传导...")
+    _emit(0.68, f"[6/8] [{dev_profile.backend.upper()}] 运行 {cfg.mc_simulations:,} 路径 Student-t 相关蒙特卡洛风险模拟 & 产业链传导...")
     risk_mc = run_gpu_portfolio_risk_mc(
         ohlcv_map=ohlcv_map,
         portfolio_cfg=p_cfg,
@@ -250,7 +250,7 @@ def run_full_analysis_pipeline(
 
     # --- Stage 7: [GPU Engine #4] Vectorized Grid Backtest ---
     if run_backtest:
-        _emit(0.76, f"📈 [7/8] [{dev_profile.backend.upper()}] 运行 GPU 288 组多参数网格策略回测与稳健性检验...")
+        _emit(0.76, f"[7/8] [{dev_profile.backend.upper()}] 运行 GPU 288 组多参数网格策略回测与稳健性检验...")
         backtest_res = run_gpu_grid_backtest(
             ohlcv_map=ohlcv_map,
             symbols=all_equities,
@@ -267,7 +267,7 @@ def run_full_analysis_pipeline(
 
     # --- Stage 8: [RTX 5070 Ti Local LLM] Multi-Agent Deep Research ---
     if run_llm:
-        _emit(0.82, f"🤖 [8/8] 显存已释放并移交本地 LLM ({llm_model})，启动多角色投研团队...")
+        _emit(0.82, f"[8/8] 显存已释放并移交本地 LLM ({llm_model})，启动多角色投研团队...")
         llm_client = LocalLLMClient(
             base_url=llm_base_url,
             api_key=cfg.llm_api_key,
@@ -348,7 +348,7 @@ def run_full_analysis_pipeline(
     report_path = export_markdown_report(payload, cfg.reports_dir)
     payload["report_path"] = str(report_path)
 
-    _emit(1.0, f"✅ 全流程完成！耗时 {elapsed_total:.1f}s，已归档快照 #{snap_id} 并导出离线报告。")
+    _emit(1.0, f"全流程完成！耗时 {elapsed_total:.1f}s，已归档快照 #{snap_id} 并导出离线报告。")
     return payload
 
 

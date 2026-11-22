@@ -111,9 +111,9 @@ def run_local_llm_research_suite(
     # --- Stage A: Supply-Chain Strategist ---
     if progress_cb:
         msg = (
-            f"🤖 [5070 Ti · {client.model}] 正在运行：产业链首席策略师分析..."
+            f"[5070 Ti · {client.model}] 正在运行：产业链首席策略师分析..."
             if lang == "zh"
-            else f"🤖 [5070 Ti · {client.model}] Running Supply-Chain Strategist..."
+            else f"[5070 Ti · {client.model}] Running Supply-Chain Strategist..."
         )
         progress_cb(msg)
 
@@ -176,9 +176,9 @@ def run_local_llm_research_suite(
             continue
         if progress_cb:
             msg = (
-                f"🤖 [5070 Ti · {client.model}] 个股多空辩论与排雷 ({idx}/{total_d}): {sym}..."
+                f"[5070 Ti · {client.model}] 个股多空辩论与排雷 ({idx}/{total_d}): {sym}..."
                 if lang == "zh"
-                else f"🤖 [5070 Ti · {client.model}] Bull/Bear Debate ({idx}/{total_d}): {sym}..."
+                else f"[5070 Ti · {client.model}] Bull/Bear Debate ({idx}/{total_d}): {sym}..."
             )
             progress_cb(msg)
         try:
@@ -197,9 +197,9 @@ def run_local_llm_research_suite(
     # --- Stage C: Portfolio Manager Executive Weekly Plan ---
     if progress_cb:
         msg = (
-            f"🤖 [5070 Ti · {client.model}] 正在生成：基金经理《本周波段交易执行计划》..."
+            f"[5070 Ti · {client.model}] 正在生成：基金经理《本周波段交易执行计划》..."
             if lang == "zh"
-            else f"🤖 [5070 Ti · {client.model}] Generating Portfolio Manager Weekly Execution Plan..."
+            else f"[5070 Ti · {client.model}] Generating Portfolio Manager Weekly Execution Plan..."
         )
         progress_cb(msg)
 

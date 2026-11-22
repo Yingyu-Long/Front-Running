@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 # ==============================================================================
-# Core UI Strings (en = Default English Broker Terminal, zh = 中文专业终端)
+# Core UI Strings (en = Default English Broker Terminal, zh = Chinese Terminal)
 # ==============================================================================
 STRINGS: dict[str, dict[str, str]] = {
     "en": {
@@ -13,7 +13,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "brand_title": "FRONT-RUNNING PRO",
         "brand_sub": "AI & STORAGE SUPPLY-CHAIN EQUITY DESK",
         "lang_slider_label": "EN ⇄ 中文",
-        "lang_badge": "🇺🇸 EN",
+        "lang_badge": "EN",
         "sidebar_title": "5070 Ti ENGINE",
         "sidebar_caption": "Local GPU Quant + LLM Workstation",
         "gpu_ready": "CUDA Active",
@@ -29,32 +29,32 @@ STRINGS: dict[str, dict[str, str]] = {
         "opt_ml": "GPU Walk-Forward ML Alpha",
         "opt_bt": "GPU 288-Combo Grid Backtest",
         "opt_llm": "5070 Ti Multi-Agent AI Research",
-        "btn_run_scan": "⚡ RUN FULL SCAN",
+        "btn_run_scan": "RUN FULL SCAN",
         "scan_done": "Scan complete in {sec}s. Snapshot archived — safe to shut down PC after review.",
         "scan_failed": "Pipeline error",
         "snap_section": "SAVED SNAPSHOTS",
         "snap_select": "Load archived run (instant offline)",
         "btn_load_snap": "Load Snapshot",
         "btn_download_md": "Export Report (.md)",
-        "no_snap_banner": "Click **⚡ RUN FULL SCAN** in the sidebar to pull 10Y market history, run RTX 5070 Ti GPU quant/risk/backtest engines, and generate your AI trading brief.",
+        "no_snap_banner": "Click **RUN FULL SCAN** in the sidebar to pull 10Y market history, run RTX 5070 Ti GPU quant/risk/backtest engines, and generate your AI trading brief.",
         "snap_meta": "Snapshot `{ts}` · Engine `{dev}` · LLM `{llm}` · `{sec}s`",
         # Tabs
-        "tab_desk": "📈 Trade Desk",
-        "tab_scanner": "🎯 Signals & Regime",
-        "tab_portfolio": "💼 Positions & Risk",
-        "tab_chain": "📡 Supply Chain",
-        "tab_backtest": "🧪 Backtest & ML",
-        "tab_grid": "🕸️ Grid Lab",
-        "tab_journal": "📓 Trade Journal",
-        "tab_guide": "⚙️ Desk Guide",
+        "tab_desk": "Trade Desk",
+        "tab_scanner": "Signals & Regime",
+        "tab_portfolio": "Positions & Risk",
+        "tab_chain": "Supply Chain",
+        "tab_backtest": "Backtest & ML",
+        "tab_grid": "Grid Lab",
+        "tab_journal": "Trade Journal",
+        "tab_guide": "Desk Guide",
         # Grid Lab (4-Stage RTX 5070 Ti GPU Grid Suite)
         "grid_title": "GPU Grid Trading Lab (Hurst · 60k 4D Hyper-Cube · 50k Black-Swan MC · ML Switch)",
         "grid_s1_hdr": "Stage 1 · Watchlist Grid Suitability Screener (PyTorch CUDA)",
-        "grid_s1_btn": "⚡ Scan Watchlist for Grid Suitability",
+        "grid_s1_btn": "Scan Watchlist for Grid Suitability",
         "grid_s2_hdr": "Stage 2 · 4D Hyper-Cube Tensor Optimization & SciPy Gaussian Plateau",
         "grid_s3_hdr": "Stage 3 · 10,000-Path Black-Swan Monte Carlo Stress Test (50,000 Sims)",
         "grid_s4_hdr": "Stage 4 · XGBoost/LightGBM 5-Day Crash Switch & Live Order Monitor",
-        "grid_run_deep": "🚀 Run Stages 2–4 GPU Lab",
+        "grid_run_deep": "Run Stages 2–4 GPU Lab",
         "grid_pick_sym": "Target Stock for Stages 2–4",
         "grid_budget": "Grid Capital ($)",
         "grid_held": "Grid Shares Held",
@@ -80,7 +80,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "lbl_max_risk": "Planned Risk",
         "lbl_earnings": "Earnings Guard",
         "lbl_52w": "52W Range",
-        "btn_quick_log": "📝 Log Setup to Journal",
+        "btn_quick_log": "Log Setup to Journal",
         "quick_log_ok": "Logged {sym} plan into Trade Journal.",
         "sub_quant": "Quant & Crash Guard",
         "sub_analog": "GPU 10Y Analogs",
@@ -108,7 +108,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "regime_vix": "VIX Volatility",
         "regime_us10y": "US 10Y Yield",
         "regime_guide_lbl": "Desk Playbook",
-        "pm_memo_hdr": "🤖 5070 Ti Portfolio Manager · Weekly Execution Brief",
+        "pm_memo_hdr": "5070 Ti Portfolio Manager · Weekly Execution Brief",
         "diff_hdr": "Score Movers vs. Previous Snapshot",
         "screener_hdr": "Full Universe Swing Scorecard & Trade Plans",
         # Tab 3: Portfolio & Risk
@@ -119,7 +119,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "lbl_risk_pct": "Max Risk / Trade (%)",
         "lbl_max_pos": "Max Single Position (%)",
         "btn_save_pos": "Save Portfolio Config",
-        "saved_pos_ok": "Saved to config/portfolio.yaml. Click ⚡ RUN FULL SCAN to refresh Monte Carlo & risk metrics.",
+        "saved_pos_ok": "Saved to config/portfolio.yaml. Click RUN FULL SCAN to refresh Monte Carlo & risk metrics.",
         "mc_hdr": "GPU Student-t Fat-Tail Monte Carlo Risk ({sims:,} Paths · df={df} · {ms}ms)",
         "mc_gross": "Gross Exposure",
         "mc_vol": "Annualized Vol",
@@ -205,7 +205,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "brand_title": "FRONT-RUNNING PRO",
         "brand_sub": "AI 算力 & 存储产业链 · 美股现货波段交易终端",
         "lang_slider_label": "EN ⇄ 中文",
-        "lang_badge": "🇨🇳 中文",
+        "lang_badge": "中文",
         "sidebar_title": "5070 Ti 算力中心",
         "sidebar_caption": "本地 GPU 量化 + 大模型工作站",
         "gpu_ready": "CUDA 已就绪",
@@ -221,32 +221,32 @@ STRINGS: dict[str, dict[str, str]] = {
         "opt_ml": "GPU Walk-Forward 机器学习",
         "opt_bt": "GPU 288 组参数网格回测",
         "opt_llm": "5070 Ti 本地多角色 AI 研报",
-        "btn_run_scan": "⚡ 一键启动全量分析",
+        "btn_run_scan": "一键启动全量分析",
         "scan_done": "全量分析完成，耗时 {sec} 秒。已归档快照，看完报告即可关机。",
         "scan_failed": "运行失败",
         "snap_section": "历史归档快照",
         "snap_select": "加载历史快照（离线秒开）",
         "btn_load_snap": "切换至该快照",
         "btn_download_md": "导出离线周报 (.md)",
-        "no_snap_banner": "请点击左侧 **⚡ 一键启动全量分析**，系统将拉取 10 年历史数据、调用 RTX 5070 Ti 完成量化/蒙特卡洛/回测与本地 AI 排雷。",
+        "no_snap_banner": "请点击左侧 **一键启动全量分析**，系统将拉取 10 年历史数据、调用 RTX 5070 Ti 完成量化/蒙特卡洛/回测与本地 AI 排雷。",
         "snap_meta": "快照时间 `{ts}` · 后端 `{dev}` · 本地模型 `{llm}` · 耗时 `{sec}s`",
         # Tabs
-        "tab_desk": "📈 交易工作台",
-        "tab_scanner": "🎯 信号与大盘",
-        "tab_portfolio": "💼 持仓与风控",
-        "tab_chain": "📡 产业链轮动",
-        "tab_backtest": "🧪 回测与 ML",
-        "tab_grid": "🕸️ 网格实验室",
-        "tab_journal": "📓 交易日志",
-        "tab_guide": "⚙️ 使用指南",
+        "tab_desk": "交易工作台",
+        "tab_scanner": "信号与大盘",
+        "tab_portfolio": "持仓与风控",
+        "tab_chain": "产业链轮动",
+        "tab_backtest": "回测与 ML",
+        "tab_grid": "网格实验室",
+        "tab_journal": "交易日志",
+        "tab_guide": "使用指南",
         # Grid Lab
         "grid_title": "RTX 5070 Ti 四阶段 GPU 网格实验室 (赫斯特体检 · 6万组4D高原 · 5万次黑天鹅压测 · ML智能开关)",
         "grid_s1_hdr": "阶段一 · 自选池网格适配度客观体检 (PyTorch CUDA 并行)",
-        "grid_s1_btn": "⚡ 一键扫描 Watchlist 网格适配度",
+        "grid_s1_btn": "一键扫描 Watchlist 网格适配度",
         "grid_s2_hdr": "阶段二 · 4D 参数超立方体 GPU 搜索 & SciPy 高斯参数高原",
         "grid_s3_hdr": "阶段三 · 10,000 平行宇宙黑天鹅蒙特卡洛压力测试 (共 50,000 次模拟)",
         "grid_s4_hdr": "阶段四 · XGBoost/LightGBM 单边暴跌智能开关 & 实盘挂单监控台",
-        "grid_run_deep": "🚀 运行阶段二~四 GPU 深度优化",
+        "grid_run_deep": "运行阶段二~四 GPU 深度优化",
         "grid_pick_sym": "选择深测标的 (阶段二~四)",
         "grid_budget": "网格专款预算 ($)",
         "grid_held": "当前网格持股数",
@@ -272,7 +272,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "lbl_max_risk": "计划最大止损额",
         "lbl_earnings": "财报风控",
         "lbl_52w": "52周区间",
-        "btn_quick_log": "📝 一键记入交易日志",
+        "btn_quick_log": "一键记入交易日志",
         "quick_log_ok": "已将 {sym} 计划写入交易复盘日志。",
         "sub_quant": "量价与排雷",
         "sub_analog": "GPU 10年相似走势",
@@ -300,7 +300,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "regime_vix": "恐慌指数 VIX",
         "regime_us10y": "10Y 美债利率",
         "regime_guide_lbl": "总控交易指南",
-        "pm_memo_hdr": "🤖 5070 Ti 本地基金经理 · 《本周波段交易执行计划》",
+        "pm_memo_hdr": "5070 Ti 本地基金经理 · 《本周波段交易执行计划》",
         "diff_hdr": "较上次快照评分异动 Top 6",
         "screener_hdr": "全股票池波段量化评分与交易计划总表",
         # Tab 3
@@ -311,7 +311,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "lbl_risk_pct": "单笔最大止损风险 (%)",
         "lbl_max_pos": "单股最大仓位上限 (%)",
         "btn_save_pos": "保存持仓与风控配置",
-        "saved_pos_ok": "已保存至 config/portfolio.yaml，请点击左侧「⚡ 一键启动全量分析」刷新风险模拟。",
+        "saved_pos_ok": "已保存至 config/portfolio.yaml，请点击左侧「一键启动全量分析」刷新风险模拟。",
         "mc_hdr": "GPU Student-t 肥尾蒙特卡洛风险模拟 ({sims:,} 路径 · df={df} · {ms}ms)",
         "mc_gross": "股票总敞口",
         "mc_vol": "组合年化波动率",
@@ -427,30 +427,30 @@ STAGE_EN: dict[int, str] = {
 }
 
 CRASH_BADGE_EN: dict[str, str] = {
-    "UPTREND_HEALTHY": "🔵 Healthy Uptrend",
-    "FALLING_KNIFE": "🔴 Falling Knife (Avoid)",
-    "LEFT_SIDE_WATCH": "🟡 Oversold Watch (Wait Base)",
-    "MISPRICED_PULLBACK": "🟢 Mispriced Dip Setup",
+    "UPTREND_HEALTHY": "Healthy Uptrend",
+    "FALLING_KNIFE": "Falling Knife (Avoid)",
+    "LEFT_SIDE_WATCH": "Oversold Watch (Wait Base)",
+    "MISPRICED_PULLBACK": "Mispriced Dip Setup",
 }
 
 SIGNAL_MAP_EN: dict[str, str] = {
-    "🔴 观望/禁接飞刀": "🔴 AVOID KNIFE",
-    "🟢 优先买入候选": "🟢 PRIORITY BUY",
-    "🟡 择机低吸/分批试仓": "🟡 PULLBACK BUY",
-    "⚪ 跟踪观察": "⚪ WATCH",
-    "🟠 偏弱回避": "🟠 UNDERWEIGHT",
+    "观望/禁接飞刀": "AVOID KNIFE",
+    "优先买入候选": "PRIORITY BUY",
+    "择机低吸/分批试仓": "PULLBACK BUY",
+    "跟踪观察": "WATCH",
+    "偏弱回避": "UNDERWEIGHT",
 }
 
 HOLDING_ACTION_EN: dict[str, str] = {
-    "🚨 触发止损线 · 建议减仓/止损": "🚨 STOP HIT · TRIM / EXIT",
-    "🔴 破位警戒 · 逢反抽减仓/严守止损": "🔴 BROKEN TREND · TRIM BOUNCE",
-    "🛡️ 坚守防御底仓": "🛡️ HOLD DEFENSIVE HEDGE",
-    "🟢 持有底仓 (进攻期可适度置换至高分龙头)": "🟢 HOLD CORE (OPTIONAL ROTATE)",
-    "🟢 强势持有 · 上移移动止盈": "🟢 HOLD STRONG · RAISE TRAIL STOP",
-    "🟢 核心持有 · 逢回踩可加仓": "🟢 CORE HOLD · ADD ON DIPS",
-    "🟡 持有观察 · 守住止损线": "🟡 HOLD · RESPECT STOP",
-    "🟠 弱势预警 · 考虑去弱留强": "🟠 WEAK · CONSIDER ROTATING",
-    "⚪ 待刷新行情": "⚪ REFRESH QUOTES",
+    "触发止损线 · 建议减仓/止损": "STOP HIT · TRIM / EXIT",
+    "破位警戒 · 逢反抽减仓/严守止损": "BROKEN TREND · TRIM BOUNCE",
+    "坚守防御底仓": "HOLD DEFENSIVE HEDGE",
+    "持有底仓 (进攻期可适度置换至高分龙头)": "HOLD CORE (OPTIONAL ROTATE)",
+    "强势持有 · 上移移动止盈": "HOLD STRONG · RAISE TRAIL STOP",
+    "核心持有 · 逢回踩可加仓": "CORE HOLD · ADD ON DIPS",
+    "持有观察 · 守住止损线": "HOLD · RESPECT STOP",
+    "弱势预警 · 考虑去弱留强": "WEAK · CONSIDER ROTATING",
+    "待刷新行情": "REFRESH QUOTES",
 }
 
 
@@ -496,22 +496,22 @@ def tr_earnings_flag(fund: dict[str, Any] | None, lang: str = "en") -> str:
     if days is None:
         return "TBD"
     if days <= 10:
-        return f"⚠️ HIGH RISK ({days}d)"
+        return f"HIGH RISK ({days}d)"
     if days <= 21:
-        return f"🟡 SOON ({days}d)"
-    return f"🟢 CLEAR ({days}d)"
+        return f"SOON ({days}d)"
+    return f"CLEAR ({days}d)"
 
 
 def tr_regime_label(score: float, zh_label: str, lang: str = "en") -> str:
     if lang == "zh":
         return zh_label
     if score >= 75:
-        return "🟢 BULL EXPANSION"
+        return "BULL EXPANSION"
     if score >= 58:
-        return "🟡 SELECTIVE BULL"
+        return "SELECTIVE BULL"
     if score >= 42:
-        return "🟠 CHOPPY / DEFENSIVE"
-    return "🔴 RISK-OFF / BEARISH"
+        return "CHOPPY / DEFENSIVE"
+    return "RISK-OFF / BEARISH"
 
 
 def tr_regime_guide(score: float, zh_guide: str, lang: str = "en") -> str:
@@ -528,5 +528,5 @@ def tr_regime_guide(score: float, zh_guide: str, lang: str = "en") -> str:
 
 def tr_role(role: str, lang: str = "en") -> str:
     if lang == "zh":
-        return "💼持仓" if role == "holding" else ("📡风向标" if role == "bellwether" else "👀自选")
+        return "持仓" if role == "holding" else ("风向标" if role == "bellwether" else "自选")
     return "POS" if role == "holding" else ("BELL" if role == "bellwether" else "WATCH")

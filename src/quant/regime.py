@@ -1,4 +1,4 @@
-"""Macro & Sector Market Regime Engine (大盘与半导体温度计 / 风险仓位开关)."""
+"""Macro & Sector Market Regime Engine (Market & Semiconductor Thermometer / Exposure Switch)."""
 
 from __future__ import annotations
 
@@ -88,12 +88,12 @@ def evaluate_market_regime(
             metrics["soxx_vs_spy_20d_pct"] = round(ratio_ret20, 2) if ratio_ret20 is not None else None
             if ratio_sma50 and curr_ratio > ratio_sma50 and (ratio_ret20 or 0) > 0:
                 score += 7.0
-                signals.append("🟢 半导体相对大盘走强 (SOXX/SPY > 50日线)，科技主线健康")
+                signals.append("半导体相对大盘走强 (SOXX/SPY > 50日线)，科技主线健康")
             elif ratio_sma50 and curr_ratio < ratio_sma50 and (ratio_ret20 or 0) < -3.0:
                 score -= 8.0
-                signals.append("🔴 半导体明显跑输大盘 (SOXX/SPY 弱势)，AI/存储板块处于逆风期")
+                signals.append("半导体明显跑输大盘 (SOXX/SPY 弱势)，AI/存储板块处于逆风期")
             else:
-                signals.append("🟡 半导体相对大盘震荡分化，重个股精选而非盲目全仓")
+                signals.append("半导体相对大盘震荡分化，重个股精选而非盲目全仓")
 
     # 3. Volatility Regime (^VIX, +/- 12 pts)
     vix_df = ohlcv_map.get("^VIX")
@@ -104,16 +104,16 @@ def evaluate_market_regime(
         metrics["VIX_vs_sma20"] = round(vix_last - vix_sma20, 2)
         if vix_last < 16.0:
             score += 9.0
-            signals.append(f"🟢 VIX={vix_last:.1f}（低波动顺风环境，适合趋势持有）")
+            signals.append(f"VIX={vix_last:.1f}（低波动顺风环境，适合趋势持有）")
         elif vix_last < 22.0:
             score += 2.0
-            signals.append(f"🟡 VIX={vix_last:.1f}（正常波动区间，控制买点节奏）")
+            signals.append(f"VIX={vix_last:.1f}（正常波动区间，控制买点节奏）")
         elif vix_last < 30.0:
             score -= 8.0
-            signals.append(f"🟠 VIX={vix_last:.1f}（波动抬升，严控追高与单笔止损）")
+            signals.append(f"VIX={vix_last:.1f}（波动抬升，严控追高与单笔止损）")
         else:
             score -= 13.0
-            signals.append(f"🔴 VIX={vix_last:.1f}（高恐慌区，警惕连环杀跌，但同时留意极端情绪见底信号）")
+            signals.append(f"VIX={vix_last:.1f}（高恐慌区，警惕连环杀跌，但同时留意极端情绪见底信号）")
 
     # 4. 10Y Treasury Yield Pressure (^TNX, +/- 6 pts)
     tnx_df = ohlcv_map.get("^TNX")
@@ -128,10 +128,10 @@ def evaluate_market_regime(
         metrics["US10Y_20d_chg_bps"] = round(tnx_chg_bps, 1)
         if tnx_chg_bps >= 35:
             score -= 6.0
-            signals.append(f"🟠 10年期美债利率近20日飙升 +{tnx_chg_bps:.0f}bps（当前 {tnx_pct:.2f}%），压制高估值科技股")
+            signals.append(f"10年期美债利率近20日飙升 +{tnx_chg_bps:.0f}bps（当前 {tnx_pct:.2f}%），压制高估值科技股")
         elif tnx_chg_bps <= -25:
             score += 5.0
-            signals.append(f"🟢 10年期美债利率回落 {tnx_chg_bps:.0f}bps（当前 {tnx_pct:.2f}%），利好科技成长估值")
+            signals.append(f"10年期美债利率回落 {tnx_chg_bps:.0f}bps（当前 {tnx_pct:.2f}%），利好科技成长估值")
 
     # 5. Internal Watchlist Breadth (% above 20MA & 50MA, +/- 12 pts)
     above20_cnt, above50_cnt, above200_cnt, valid_cnt = 0, 0, 0, 0
@@ -161,33 +161,33 @@ def evaluate_market_regime(
         metrics["breadth_above_200ma_pct"] = round(b200, 1)
         if b50 >= 65:
             score += 9.0
-            signals.append(f"🟢 股票池内部宽度强劲：{b50:.0f}% 标的站稳 50 日均线")
+            signals.append(f"股票池内部宽度强劲：{b50:.0f}% 标的站稳 50 日均线")
         elif b50 <= 30:
             score -= 10.0
-            signals.append(f"🔴 股票池内部宽度转弱：仅 {b50:.0f}% 标的在 50 日均线上方（多数处于调整/下跌趋势）")
+            signals.append(f"股票池内部宽度转弱：仅 {b50:.0f}% 标的在 50 日均线上方（多数处于调整/下跌趋势）")
         else:
-            signals.append(f"🟡 股票池宽度中性：{b50:.0f}% 在 50 日线上方，{b20:.0f}% 在 20 日线上方")
+            signals.append(f"股票池宽度中性：{b50:.0f}% 在 50 日线上方，{b20:.0f}% 在 20 日线上方")
 
     score = round(max(0.0, min(100.0, score)), 1)
 
     # Translate numeric score into actionable trading desk guidance
     if score >= 75:
-        label = "🟢 强势进攻期 (Bull Expansion)"
+        label = "强势进攻期 (Bull Expansion)"
         suggested_max_exposure_pct = 90
         suggested_defensive_cash_pct = 10
         action_guide = "主线顺风，可积极持有核心强势股，逢缩量回踩 20 日线加仓，放宽移动止盈让利润奔跑。"
     elif score >= 58:
-        label = "🟡 温和多头 / 结构分化 (Selective Bull)"
+        label = "温和多头 / 结构分化 (Selective Bull)"
         suggested_max_exposure_pct = 75
         suggested_defensive_cash_pct = 25
         action_guide = "精选高确定性龙头，不追高、只买盈亏比 >= 2:1 的支撑位或财报催化形态，保留 20%~25% 现金/MCD。"
     elif score >= 42:
-        label = "🟠 震荡防守 / 高波动拉锯 (Choppy / Distribution)"
+        label = "震荡防守 / 高波动拉锯 (Choppy / Distribution)"
         suggested_max_exposure_pct = 55
         suggested_defensive_cash_pct = 45
         action_guide = "市场多空拉锯，严禁重仓接飞刀！优先保留强基本面底仓，减掉破位弱势股，提高现金与 MCD 防御比例。"
     else:
-        label = "🔴 逆风避险 / 退潮防御 (Risk-Off / Bearish)"
+        label = "逆风避险 / 退潮防御 (Risk-Off / Bearish)"
         suggested_max_exposure_pct = 35
         suggested_defensive_cash_pct = 65
         action_guide = "科技/半导体处于明显逆风，保住本金第一！严格执行止损、禁止盲目补仓，仅在极度超卖且放量止跌后小仓位试探。"

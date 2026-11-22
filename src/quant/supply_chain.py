@@ -83,11 +83,11 @@ def compute_supply_chain_lead_lag(
 
         signal_note = "同步波动"
         if same_day_corr >= 0.45 and spread_10d >= 6.0:
-            signal_note = f"🟢 上游 {src} 近10日领先 +{spread_10d:.1f}%，留意 {tgt} 滞后补涨机会"
+            signal_note = f"上游 {src} 近10日领先 +{spread_10d:.1f}%，留意 {tgt} 滞后补涨机会"
         elif same_day_corr >= 0.45 and spread_10d <= -6.0:
-            signal_note = f"🟠 上游 {src} 近10日明显走弱({spread_10d:.1f}%)，警惕 {tgt} 补跌风险"
+            signal_note = f"上游 {src} 近10日明显走弱({spread_10d:.1f}%)，警惕 {tgt} 补跌风险"
         elif abs(best_lag_corr) >= 0.18:
-            signal_note = f"📡 存在 {best_lag} 日显著滞后传导效应 (r={best_lag_corr:+.2f})"
+            signal_note = f"存在 {best_lag} 日显著滞后传导效应 (r={best_lag_corr:+.2f})"
 
         results.append(
             {
@@ -146,13 +146,13 @@ def compute_pair_rotation_spreads(
         )
 
         if zscore >= 1.8:
-            interp = f"⚖️ {a} 相对 {b} 短期极端偏贵 (Z={zscore:+.2f})：适合止盈部分 {a} 或换仓关注 {b}"
+            interp = f"{a} 相对 {b} 短期极端偏贵 (Z={zscore:+.2f})：适合止盈部分 {a} 或换仓关注 {b}"
         elif zscore <= -1.8:
-            interp = f"⚖️ {a} 相对 {b} 短期极端超跌 (Z={zscore:+.2f})：若基本面未破，{a} 均值回归赔率更高"
+            interp = f"{a} 相对 {b} 短期极端超跌 (Z={zscore:+.2f})：若基本面未破，{a} 均值回归赔率更高"
         elif ret21_a > ret21_b + 5.0:
-            interp = f"📈 动量占优：{a} 近1月强势领先 {b} ({ret21_a - ret21_b:+.1f}%)"
+            interp = f"动量占优：{a} 近1月强势领先 {b} ({ret21_a - ret21_b:+.1f}%)"
         elif ret21_b > ret21_a + 5.0:
-            interp = f"📈 动量占优：{b} 近1月强势领先 {a} ({ret21_b - ret21_a:+.1f}%)"
+            interp = f"动量占优：{b} 近1月强势领先 {a} ({ret21_b - ret21_a:+.1f}%)"
         else:
             interp = "均衡区间，无极端价差偏离"
 
@@ -176,7 +176,7 @@ def rank_within_sectors(
     stock_scores: dict[str, dict[str, Any]],
     universe_cfg: dict[str, Any],
 ) -> dict[str, list[dict[str, Any]]]:
-    """Group and rank all stocks inside each supply-chain sector for '优中选优' rotation."""
+    """Group and rank all stocks inside each supply-chain sector for best-in-class rotation."""
     sectors_meta = universe_cfg.get("sectors") or {}
     u_meta = universe_cfg.get("universe") or {}
     grouped: dict[str, list[dict[str, Any]]] = {}

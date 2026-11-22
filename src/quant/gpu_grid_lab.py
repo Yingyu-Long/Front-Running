@@ -259,8 +259,8 @@ def screen_watchlist_for_grid(
                     "in_range_pct": 0.0,
                     "grid_score": 0.0,
                     "verdict_code": "INSUFFICIENT_DATA",
-                    "verdict_en": "⚪ INSUFFICIENT DATA",
-                    "verdict_zh": "⚪ 历史数据不足",
+                    "verdict_en": "INSUFFICIENT DATA",
+                    "verdict_zh": "历史数据不足",
                     "reason_en": "Fewer than 40 daily bars; cannot calibrate Hurst or grid range safely.",
                     "reason_zh": "历史交易日少于40天，无法计算赫斯特指数与安全网格区间。",
                 }
@@ -371,16 +371,16 @@ def screen_watchlist_for_grid(
 
         if final_score >= 72.0:
             v_code = "SUITABLE"
-            v_en = "🟢 SUITABLE"
-            v_zh = "🟢 适合跑网格"
+            v_en = "SUITABLE"
+            v_zh = "适合跑网格"
         elif final_score >= 56.0:
             v_code = "CONDITIONAL"
-            v_en = "🟡 CONDITIONAL (USE ML SWITCH)"
-            v_zh = "🟡 谨慎可用(须开ML防暴跌)"
+            v_en = "CONDITIONAL (USE ML SWITCH)"
+            v_zh = "谨慎可用(须开ML防暴跌)"
         else:
             v_code = "NOT_SUITABLE"
-            v_en = "🔴 NOT SUITABLE"
-            v_zh = "🔴 不适合跑网格"
+            v_en = "NOT SUITABLE"
+            v_zh = "不适合跑网格"
 
         rows.append(
             {
@@ -415,11 +415,11 @@ def screen_watchlist_for_grid(
         summary_zh = f"自选池中有 {suitable_cnt} 只标的客观达到网格标准（{', '.join(top_syms)}），可在下方运行阶段二~四做参数高原与压力测试。"
     elif cond_cnt > 0:
         top_syms = [r["symbol"] for r in rows if r["verdict_code"] == "CONDITIONAL"][:3]
-        summary_en = f"⚠️ ZERO ideal pure-grid candidates (your AI/Storage watchlist is heavily trend-driven). {cond_cnt} borderline ticker(s) ({', '.join(top_syms)}) are CONDITIONAL ONLY — must use ATR Dynamic Grid + ML Crash Switch."
-        summary_zh = f"⚠️ 客观结论：你当前自选池以强趋势 AI/存储股为主，【没有】天生完美的纯网格标的！仅 {cond_cnt} 只（{', '.join(top_syms)}）勉强有条件可用，必须使用 ATR 动态网格 + ML 防单边暴跌开关。"
+        summary_en = f"ZERO ideal pure-grid candidates (your AI/Storage watchlist is heavily trend-driven). {cond_cnt} borderline ticker(s) ({', '.join(top_syms)}) are CONDITIONAL ONLY — must use ATR Dynamic Grid + ML Crash Switch."
+        summary_zh = f"客观结论：你当前自选池以强趋势 AI/存储股为主，【没有】天生完美的纯网格标的！仅 {cond_cnt} 只（{', '.join(top_syms)}）勉强有条件可用，必须使用 ATR 动态网格 + ML 防单边暴跌开关。"
     else:
-        summary_en = "🚫 HONEST VERDICT: NONE of your current watchlist stocks are suitable for grid trading right now (excessive trend persistence H > 0.55 or gap/breakout risk). Stick to Swing Trend Trading instead of forcing a grid!"
-        summary_zh = "🚫 客观结论：你当前 Watchlist 中【没有任何一只股票】适合跑网格（普遍强趋势 H > 0.55 或跳空破网风险过高）。请坚持波段趋势交易，切勿硬跑网格送钱！"
+        summary_en = "HONEST VERDICT: NONE of your current watchlist stocks are suitable for grid trading right now (excessive trend persistence H > 0.55 or gap/breakout risk). Stick to Swing Trend Trading instead of forcing a grid!"
+        summary_zh = "客观结论：你当前 Watchlist 中【没有任何一只股票】适合跑网格（普遍强趋势 H > 0.55 或跳空破网风险过高）。请坚持波段趋势交易，切勿硬跑网格送钱！"
 
     return {
         "backend": "cuda" if use_cuda else (str(dev) if dev else "cpu"),
@@ -745,7 +745,7 @@ def run_gpu_4d_grid_hypercube(
 
     for gtype, gmeta in grid_configs.items():
         if progress_cb:
-            progress_cb(f"⚡ Stage 2 [{gtype.upper()}]: evaluating {n_sp * n_rg * n_mg * n_st:,} 4D combos on {'RTX 5070 Ti CUDA' if use_cuda else 'CPU'}...")
+            progress_cb(f"Stage 2 [{gtype.upper()}]: evaluating {n_sp * n_rg * n_mg * n_st:,} 4D combos on {'RTX 5070 Ti CUDA' if use_cuda else 'CPU'}...")
 
         sp_axis = gmeta["spacings"]
         # Build exact 4D meshgrid [n_sp, n_rg, n_mg, n_st]
@@ -971,7 +971,7 @@ def run_gpu_grid_monte_carlo(
 
     if progress_cb:
         progress_cb(
-            f"🎲 Stage 3: simulating {paths_eff:,} intraday Black-Swan paths × {k_cfg} configs = {paths_eff * k_cfg:,} universes on {'RTX 5070 Ti CUDA' if use_cuda else 'CPU'}..."
+            f"Stage 3: simulating {paths_eff:,} intraday Black-Swan paths × {k_cfg} configs = {paths_eff * k_cfg:,} universes on {'RTX 5070 Ti CUDA' if use_cuda else 'CPU'}..."
         )
 
     for p_start in range(0, paths_eff, path_chunk):
@@ -1227,8 +1227,8 @@ def run_gpu_grid_monte_carlo(
                 "prob_profit_pct": round(win_prob, 1),
                 "median_annual_trades": int(np.median(trd_c)),
                 "passed_gate": bool(passed),
-                "gate_badge_en": "✅ PASS" if passed else "❌ FAIL (Break Risk Too High)",
-                "gate_badge_zh": "✅ 通过压力测试" if passed else "❌ 淘汰 (破网率超标)",
+                "gate_badge_en": "PASS" if passed else "FAIL (Break Risk Too High)",
+                "gate_badge_zh": "通过压力测试" if passed else "淘汰 (破网率超标)",
                 "ret_hist": {
                     "counts": [int(x) for x in hist_cnt],
                     "centers": [round(float((hist_edges[i] + hist_edges[i + 1]) / 2.0), 1) for i in range(len(hist_cnt))],
@@ -1495,20 +1495,20 @@ def train_predict_grid_crash_switch(
 
     if prob_ens >= 55.0:
         state_code = "PAUSE_RED"
-        badge_en = "🔴 RED LIGHT · PAUSE GRID BUYS"
-        badge_zh = "🔴 单边暴跌红灯 · 暂停网格买入"
+        badge_en = "RED LIGHT · PAUSE GRID BUYS"
+        badge_zh = "单边暴跌红灯 · 暂停网格买入"
         directive_en = "High 5-day breakdown probability. Freeze all lower buy orders, preserve cash bullets, and wait for stabilization before re-enabling."
         directive_zh = "模型预警未来 5 天存在较高单边下跌风险！立即暂停下方网格买单、保留现金子弹，等跌势企稳转绿灯后再恢复。"
     elif prob_ens >= 35.0:
         state_code = "CAUTION_AMBER"
-        badge_en = "🟡 AMBER CAUTION · HALF GRID SIZE"
-        badge_zh = "🟡 波动黄灯警戒 · 减半单格仓位"
+        badge_en = "AMBER CAUTION · HALF GRID SIZE"
+        badge_zh = "波动黄灯警戒 · 减半单格仓位"
         directive_en = "Elevated downside turbulence. Cut new buy-rung order size by 50% and widen spacing slightly."
         directive_zh = "短期下行波动抬升，建议新触发买单仓位减半，避免过早打光子弹。"
     else:
         state_code = "ACTIVE_GREEN"
-        badge_en = "🟢 GREEN LIGHT · GRID ACTIVE"
-        badge_zh = "🟢 震荡安全绿灯 · 开启网格高抛低吸"
+        badge_en = "GREEN LIGHT · GRID ACTIVE"
+        badge_zh = "震荡安全绿灯 · 开启网格高抛低吸"
         directive_en = "Low 5-day one-sided crash risk. Safe to place today's buy & sell limit ladder per your champion plateau parameters."
         directive_zh = "未来 5 天单边暴跌风险低，可按最优高原参数挂好今日上下网格限价单。"
 
@@ -1632,7 +1632,7 @@ def build_live_grid_order_ladder(
                 "dist_pct": round((p / last_price - 1.0) * 100.0, 2),
                 "shares": sh,
                 "notional_usd": round(actual_usd, 0),
-                "status": "⏸️ PAUSED (ML RED)" if ml_mult == 0.0 else ("🟡 HALF (ML AMBER)" if ml_mult < 1.0 else "🟢 READY"),
+                "status": "PAUSED (ML RED)" if ml_mult == 0.0 else ("HALF (ML AMBER)" if ml_mult < 1.0 else "READY"),
             }
         )
 
@@ -1676,7 +1676,7 @@ def run_complete_grid_lab_for_symbol(
         if progress_cb:
             progress_cb(pct, msg)
 
-    _p(0.10, f"⚡ Stage 2: 4D Hyper-Cube GPU Grid Search + SciPy Gaussian Plateau on {symbol}...")
+    _p(0.10, f"Stage 2: 4D Hyper-Cube GPU Grid Search + SciPy Gaussian Plateau on {symbol}...")
     stage2 = run_gpu_4d_grid_hypercube(
         symbol=symbol,
         df=df,
@@ -1687,7 +1687,7 @@ def run_complete_grid_lab_for_symbol(
     if not stage2.get("available"):
         return {"available": False, "symbol": symbol, "reason": stage2.get("reason", "Stage 2 failed")}
 
-    _p(0.55, f"🎲 Stage 3: {n_mc_paths:,}-Path Black-Swan Intraday Monte Carlo Stress Test (×5 configs)...")
+    _p(0.55, f"Stage 3: {n_mc_paths:,}-Path Black-Swan Intraday Monte Carlo Stress Test (×5 configs)...")
     stage3 = run_gpu_grid_monte_carlo(
         symbol=symbol,
         df=df,
@@ -1699,7 +1699,7 @@ def run_complete_grid_lab_for_symbol(
         progress_cb=lambda m: _p(0.70, m),
     )
 
-    _p(0.84, f"🧠 Stage 4: Walk-Forward XGBoost (CUDA) + LightGBM 5-Day Crash Switch on {symbol}...")
+    _p(0.84, f"Stage 4: Walk-Forward XGBoost (CUDA) + LightGBM 5-Day Crash Switch on {symbol}...")
     stage4 = train_predict_grid_crash_switch(
         symbol=symbol,
         ohlcv_map=ohlcv_map,
@@ -1717,7 +1717,7 @@ def run_complete_grid_lab_for_symbol(
         stage2["top_5_plateaus"][0],
     )
 
-    _p(1.0, f"✅ Grid Lab Stages 2–4 completed for {symbol}!")
+    _p(1.0, f"Grid Lab Stages 2–4 completed for {symbol}!")
     return {
         "available": True,
         "symbol": symbol,
