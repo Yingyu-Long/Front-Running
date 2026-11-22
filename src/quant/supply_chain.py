@@ -82,12 +82,16 @@ def compute_supply_chain_lead_lag(
         spread_10d = src_10d - tgt_10d
 
         signal_note = "同步波动"
+        signal_note_en = "Moving in tandem"
         if same_day_corr >= 0.45 and spread_10d >= 6.0:
             signal_note = f"上游 {src} 近10日领先 +{spread_10d:.1f}%，留意 {tgt} 滞后补涨机会"
+            signal_note_en = f"Upstream {src} leads by +{spread_10d:.1f}% (10D); watch {tgt} for catch-up"
         elif same_day_corr >= 0.45 and spread_10d <= -6.0:
             signal_note = f"上游 {src} 近10日明显走弱({spread_10d:.1f}%)，警惕 {tgt} 补跌风险"
+            signal_note_en = f"Upstream {src} weakened ({spread_10d:.1f}% 10D); watch {tgt} for downside spillover"
         elif abs(best_lag_corr) >= 0.18:
             signal_note = f"存在 {best_lag} 日显著滞后传导效应 (r={best_lag_corr:+.2f})"
+            signal_note_en = f"Significant {best_lag}D lagged transmission (r={best_lag_corr:+.2f})"
 
         results.append(
             {
@@ -101,6 +105,7 @@ def compute_supply_chain_lead_lag(
                 "target_10d_pct": round(tgt_10d, 2),
                 "divergence_10d_pct": round(spread_10d, 2),
                 "signal_note": signal_note,
+                "signal_note_en": signal_note_en,
             }
         )
 
@@ -147,14 +152,19 @@ def compute_pair_rotation_spreads(
 
         if zscore >= 1.8:
             interp = f"{a} 相对 {b} 短期极端偏贵 (Z={zscore:+.2f})：适合止盈部分 {a} 或换仓关注 {b}"
+            interp_en = f"{a} stretched vs {b} (Z={zscore:+.2f}): consider trimming {a} or rotating to {b}"
         elif zscore <= -1.8:
             interp = f"{a} 相对 {b} 短期极端超跌 (Z={zscore:+.2f})：若基本面未破，{a} 均值回归赔率更高"
+            interp_en = f"{a} deeply oversold vs {b} (Z={zscore:+.2f}): mean-reversion edge favors {a} if fundamentals hold"
         elif ret21_a > ret21_b + 5.0:
             interp = f"动量占优：{a} 近1月强势领先 {b} ({ret21_a - ret21_b:+.1f}%)"
+            interp_en = f"Momentum leader: {a} outperforming {b} over 21D ({ret21_a - ret21_b:+.1f}%)"
         elif ret21_b > ret21_a + 5.0:
             interp = f"动量占优：{b} 近1月强势领先 {a} ({ret21_b - ret21_a:+.1f}%)"
+            interp_en = f"Momentum leader: {b} outperforming {a} over 21D ({ret21_b - ret21_a:+.1f}%)"
         else:
             interp = "均衡区间，无极端价差偏离"
+            interp_en = "Balanced spread, no extreme divergence"
 
         out.append(
             {
@@ -167,6 +177,7 @@ def compute_pair_rotation_spreads(
                 "left_21d_pct": round(ret21_a, 2),
                 "right_21d_pct": round(ret21_b, 2),
                 "interpretation": interp,
+                "interpretation_en": interp_en,
             }
         )
     return out

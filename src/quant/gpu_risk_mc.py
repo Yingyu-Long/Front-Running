@@ -255,14 +255,19 @@ def _compute_stress_scenarios(
         beta_qqq[sym] = _estimate_beta(s_ret, qqq_ret, default=1.0)
 
     scenarios = [
-        ("AI / 半导体板块回调 (SOXX -15%)", "soxx", -0.15),
-        ("纳斯达克科技杀估值 (QQQ -12%)", "qqq", -0.12),
-        ("存储/硬件周期急跌 (存储 -22%, 算力 -12%, 云 -6%, 防御 +1%)", "sector_storage", -0.22),
-        ("极端系统性科技熊市 (QQQ -25% 冲击)", "qqq", -0.25),
+        ("AI / 半导体板块回调 (SOXX -15%)", "AI / Semiconductor Pullback (SOXX -15%)", "soxx", -0.15),
+        ("纳斯达克科技杀估值 (QQQ -12%)", "Nasdaq Tech Valuation Compression (QQQ -12%)", "qqq", -0.12),
+        (
+            "存储/硬件周期急跌 (存储 -22%, 算力 -12%, 云 -6%, 防御 +1%)",
+            "Memory / Storage Cycle Shock (Storage -22%, Compute -12%, Cloud -6%, Defensive +1%)",
+            "sector_storage",
+            -0.22,
+        ),
+        ("极端系统性科技熊市 (QQQ -25% 冲击)", "Severe Systemic Tech Bear Shock (QQQ -25%)", "qqq", -0.25),
     ]
 
     results = []
-    for name, mode, shock in scenarios:
+    for name, name_en, mode, shock in scenarios:
         total_pnl = 0.0
         worst_sym = ""
         worst_loss = 0.0
@@ -293,6 +298,7 @@ def _compute_stress_scenarios(
         results.append(
             {
                 "scenario": name,
+                "scenario_en": name_en,
                 "est_portfolio_impact_pct": round(total_pnl / total_nav * 100.0, 2),
                 "est_portfolio_impact_usd": round(total_pnl, 0),
                 "largest_drag_symbol": worst_sym,

@@ -42,8 +42,52 @@ from src.quant.supply_chain import (
     rank_within_sectors,
 )
 from src.storage.db import TradingDB
+from src.ui.i18n import (
+    tr_crash_badge,
+    tr_earnings_flag,
+    tr_holding_action,
+    tr_regime_guide,
+    tr_regime_label,
+    tr_sector,
+    tr_signal,
+)
 
 logger = logging.getLogger(__name__)
+
+
+def _compute_live_account_equity(
+    portfolio_cfg: dict[str, Any],
+    ohlcv_map: dict[str, Any],
+    live_quotes: dict[str, dict[str, Any]] | None = None,
+) -> float:
+    """Compute live Total Account Equity (NAV) as sum(shares * price) + cash_usd."""
+    account = portfolio_cfg.get("account") or {}
+    cash_usd = float(account.get("cash_usd") or 0.0)
+    holdings = portfolio_cfg.get("holdings") or []
+    lq = live_quotes or {}
+
+    holdings_val = 0.0
+    for h in holdings:
+        sym = str(h.get("symbol", "")).upper().strip()
+        shares = float(h.get("shares") or 0.0)
+        if not sym or shares <= 0:
+            continue
+        px = None
+        if sym in lq and lq[sym] and lq[sym].get("regular_price") is not None:
+            px = float(lq[sym]["regular_price"])
+        else:
+            df = ohlcv_map.get(sym)
+            if df is not None and not df.empty and "Close" in df.columns:
+                px = float(df["Close"].iloc[-1])
+        if px is None or px <= 0:
+            avg_c = float(h.get("avg_cost") or 0.0)
+            px = avg_c if avg_c > 0 else 0.0
+        holdings_val += shares * px
+
+    total = round(holdings_val + cash_usd, 2)
+    if total > 0:
+        return total
+    return float(account.get("total_equity_usd") or 100_000.0)
 
 
 def run_full_analysis_pipeline(
@@ -187,7 +231,13 @@ def run_full_analysis_pipeline(
     stock_analyses: dict[str, dict[str, Any]] = {}
     analog_per = analog_res.get("per_symbol") or {}
     ml_per = ml_res.get("per_symbol") or {}
-    account_cfg = p_cfg.get("account") or {}
+    account_cfg = dict(p_cfg.get("account") or {})
+    live_nav = (
+        float(risk_mc["total_nav_usd"])
+        if (risk_mc.get("available") and risk_mc.get("total_nav_usd"))
+        else _compute_live_account_equity(p_cfg, ohlcv_map, live_quotes)
+    )
+    account_cfg["total_equity_usd"] = round(live_nav, 2)
 
     for sym in all_equities:
         t = tech_map.get(sym) or {"symbol": sym, "error": "missing"}
@@ -310,8 +360,11 @@ def run_full_analysis_pipeline(
 
     elapsed_total = round(time.perf_counter() - t_start, 1)
 
+    run_lang = "zh" if (lang or "en").lower() == "zh" else "en"
+
     payload: dict[str, Any] = {
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "lang": run_lang,
         "elapsed_sec": elapsed_total,
         "device_profile": {
             "backend": dev_profile.backend,
@@ -350,11 +403,16 @@ def run_full_analysis_pipeline(
     prev_snap = db.get_previous_snapshot(snap_id)
     payload["weekly_diff"] = compute_snapshot_diff(payload, (prev_snap or {}).get("payload"))
 
-    # Export standalone offline Markdown report
-    report_path = export_markdown_report(payload, cfg.reports_dir)
+    # Export standalone offline Markdown report in the selected run language
+    report_path = export_markdown_report(payload, cfg.reports_dir, lang=run_lang)
     payload["report_path"] = str(report_path)
 
-    _emit(1.0, f"全流程完成！耗时 {elapsed_total:.1f}s，已归档快照 #{snap_id} 并导出离线报告。")
+    _emit(
+        1.0,
+        f"全流程完成！耗时 {elapsed_total:.1f}s，已归档快照 #{snap_id} 并导出离线报告。"
+        if run_lang == "zh"
+        else f"Pipeline complete in {elapsed_total:.1f}s. Snapshot #{snap_id} archived and report exported.",
+    )
     return payload
 
 
@@ -509,59 +567,180 @@ def compute_snapshot_diff(
     return diffs
 
 
-def export_markdown_report(payload: dict[str, Any], reports_dir: Path) -> Path:
-    """Export a clean offline Chinese Markdown report so you can shut down the PC and read anywhere."""
-    reports_dir.mkdir(parents=True, exist_ok=True)
-    ts = datetime.now().strftime("%Y%m%d_%H%M")
-    out_path = reports_dir / f"weekly_trading_report_{ts}.md"
+_STRESS_SCENARIO_EN_FALLBACK: dict[str, str] = {
+    "AI / 半导体板块回调 (SOXX -15%)": "AI / Semiconductor Pullback (SOXX -15%)",
+    "纳斯达克科技杀估值 (QQQ -12%)": "Nasdaq Tech Valuation Compression (QQQ -12%)",
+    "存储/硬件周期急跌 (存储 -22%, 算力 -12%, 云 -6%, 防御 +1%)": (
+        "Memory / Storage Cycle Shock (Storage -22%, Compute -12%, Cloud -6%, Defensive +1%)"
+    ),
+    "极端系统性科技熊市 (QQQ -25% 冲击)": "Severe Systemic Tech Bear Shock (QQQ -25%)",
+}
+
+
+def render_markdown_report(payload: dict[str, Any], lang: str | None = None) -> str:
+    """Render an offline Markdown report in the run language ('en' or 'zh')."""
+    report_lang = (
+        lang
+        or payload.get("lang")
+        or (payload.get("llm") or {}).get("lang")
+        or "en"
+    )
+    is_zh = str(report_lang).lower() == "zh"
 
     regime = payload.get("regime") or {}
+    r_score = float(regime.get("regime_score") or 50.0)
+    r_metrics = regime.get("metrics") or {}
     risk_mc = payload.get("risk_mc") or {}
     llm = payload.get("llm") or {}
     sc_rep = llm.get("supply_chain_report") or {}
-
-    lines: list[str] = [
-        f"# AI & 存储产业链 · 美股波段投研周报 ({payload.get('generated_at')})",
-        "",
-        f"> 计算硬件: `{payload.get('device_profile', {}).get('summary', '')}` | 本地 AI 模型: `{llm.get('model', 'N/A')}` | 总耗时: `{payload.get('elapsed_sec')}s`",
-        "",
-        "## 一、大盘与半导体温度计",
-        f"- **综合温度**: **{regime.get('regime_score')}/100** — {regime.get('regime_label')}",
-        f"- **建议最大股票仓位**: `{regime.get('suggested_max_exposure_pct')}%` | **建议现金/防御(MCD)比例**: `{regime.get('suggested_defensive_cash_pct')}%`",
-        f"- **总控指南**: {regime.get('action_guide')}",
-        "",
-    ]
-    for sig in regime.get("signals") or []:
-        lines.append(f"  - {sig}")
-
-    lines.extend(["", "## 二、当前持仓诊断 (GOOG / STX / MCD / AMZN / ORCL / SKHY)", ""])
-    lines.append("| 代码 | 现价 | 仓位% | 综合分 | 止损线 | 风险贡献% | 财报风控 | 建议指令 |")
-    lines.append("| :--- | ---: | ---: | ---: | ---: | ---: | :--- | :--- |")
-    for h in payload.get("holdings_diagnosis") or []:
-        lines.append(
-            f"| **{h.get('symbol')}** | ${h.get('close', '-') } | {h.get('weight_pct', '-')}% | "
-            f"{h.get('composite_score', '-')} | ${h.get('active_stop', '-')} | "
-            f"{h.get('risk_contribution_pct', '-')}% | {h.get('earnings_flag', '-')} | {h.get('action', '-')} |"
-        )
-
-    lines.extend(["", "## 三、全股票池 Top 机会与交易计划", ""])
     stocks = payload.get("stocks") or {}
+    holdings = payload.get("holdings_diagnosis") or []
+    holding_syms_str = " / ".join(str(h.get("symbol", "")) for h in holdings if h.get("symbol")) or "GOOG / STX / MCD / AMZN / ORCL / SKHY"
+
     ranked = sorted(
         [s for s in stocks.values() if not s.get("error")],
         key=lambda x: float(x.get("composite_score", 0.0)),
         reverse=True,
     )
-    lines.append("| 代码 | 赛道 | 现价 | 综合分 | GPU历史21D胜率 | 暴跌/形态 | 入场区 | 硬止损 | 目标1(R:R) | 建议信号 |")
+
+    if is_zh:
+        lines: list[str] = [
+            f"# AI & 存储产业链 · 美股波段投研周报 ({payload.get('generated_at')})",
+            "",
+            f"> 计算硬件: `{payload.get('device_profile', {}).get('summary', '')}` | AI 模型: `{llm.get('model', 'N/A')}` | 总耗时: `{payload.get('elapsed_sec')}s`",
+            "",
+            "## 一、大盘与半导体温度计",
+            f"- **综合温度**: **{regime.get('regime_score')}/100** — {regime.get('regime_label')}",
+            f"- **建议最大股票仓位**: `{regime.get('suggested_max_exposure_pct')}%` | **建议现金/防御(MCD)比例**: `{regime.get('suggested_defensive_cash_pct')}%`",
+            f"- **总控指南**: {regime.get('action_guide')}",
+            "",
+        ]
+        for sig in regime.get("signals") or []:
+            lines.append(f"  - {sig}")
+
+        lines.extend(["", f"## 二、当前持仓诊断 ({holding_syms_str})", ""])
+        lines.append("| 代码 | 现价 | 仓位% | 综合分 | 止损线 | 风险贡献% | 财报风控 | 建议指令 |")
+        lines.append("| :--- | ---: | ---: | ---: | ---: | ---: | :--- | :--- |")
+        for h in holdings:
+            lines.append(
+                f"| **{h.get('symbol')}** | ${h.get('close', '-')} | {h.get('weight_pct', '-')}% | "
+                f"{h.get('composite_score', '-')} | ${h.get('active_stop', '-')} | "
+                f"{h.get('risk_contribution_pct', '-')}% | {h.get('earnings_flag', '-')} | {h.get('action', '-')} |"
+            )
+
+        lines.extend(["", "## 三、全股票池 Top 机会与交易计划", ""])
+        lines.append("| 代码 | 赛道 | 现价 | 综合分 | GPU历史21D胜率 | 暴跌/形态 | 入场区 | 硬止损 | 目标1(R:R) | 建议信号 |")
+        lines.append("| :--- | :--- | ---: | ---: | ---: | :--- | :--- | ---: | :--- | :--- |")
+        for s in ranked:
+            tk = s.get("trade_ticket") or {}
+            an = s.get("analog") or {}
+            cr = s.get("crash_analysis") or {}
+            lines.append(
+                f"| **{s.get('symbol')}** | {s.get('sector')} | ${s.get('close')} | **{s.get('composite_score')}** | "
+                f"{an.get('win_rate_21d_pct', '-')}% | {cr.get('badge', '')} | "
+                f"${tk.get('entry_low')}-${tk.get('entry_high')} | ${tk.get('hard_stop')} | "
+                f"${tk.get('target_1')} ({tk.get('rr_target_1')}R) | {tk.get('action_signal')} |"
+            )
+
+        if risk_mc.get("available"):
+            h21 = risk_mc.get("horizon_21d") or {}
+            lines.extend(
+                [
+                    "",
+                    "## 四、GPU 10万路径 Student-t 组合风险与压力测试",
+                    f"- 总资产(含现金): `${risk_mc.get('total_nav_usd', 0):,.0f}` | 股票敞口: `{risk_mc.get('gross_exposure_pct')}%` | 组合年化波动率: `{risk_mc.get('portfolio_vol_ann_pct')}%`",
+                    f"- **21日 (1个月) 95% VaR**: `{h21.get('var_95_pct')}%` (`${h21.get('var_95_usd', 0):,.0f}`) | **95% CVaR (尾部均值)**: `{h21.get('cvar_95_pct')}%` (`${h21.get('cvar_95_usd', 0):,.0f}`)",
+                    f"- 未来1个月回撤超过 10% 的概率: `{h21.get('prob_loss_gt_10pct')}%` | 涨幅超过 10% 的概率: `{h21.get('prob_gain_gt_10pct')}%`",
+                    "",
+                ]
+            )
+            for st in risk_mc.get("stress_tests") or []:
+                lines.append(
+                    f"  - **{st['scenario']}**: 预计组合影响 `{st['est_portfolio_impact_pct']}%` (`${st['est_portfolio_impact_usd']:,.0f}`)，最大拖累: `{st['largest_drag_symbol']}`"
+                )
+
+        if sc_rep and not sc_rep.get("error"):
+            lines.extend(
+                [
+                    "",
+                    "## 五、AI 产业链首席策略师研判",
+                    f"- **产业链冷暖**: {sc_rep.get('chain_temperature', '')}",
+                    f"- **云巨头 CapEx 动向**: {sc_rep.get('capex_verdict', '')}",
+                    f"- **内存/存储周期**: {sc_rep.get('storage_cycle_verdict', '')}",
+                    f"- **首选细分赛道**: {sc_rep.get('top_sector_pick', '')}",
+                ]
+            )
+            for op in sc_rep.get("lead_lag_opportunities") or []:
+                lines.append(f"  - **轮动机会**: {op}")
+            for rf in sc_rep.get("chain_red_flags") or []:
+                lines.append(f"  - **风险警报**: {rf}")
+
+        if llm.get("pm_weekly_memo"):
+            lines.extend(["", "## 六、基金经理《本周波段交易执行计划》", "", llm["pm_weekly_memo"]])
+
+        lines.extend(["", "---", "*免责声明：本报告由本地量化引擎与大模型自动生成，仅供投研辅助与风险管理参考，不构成任何具体证券买卖建议。*"])
+        return "\n".join(lines)
+
+    # English institutional report
+    r_label_en = tr_regime_label(r_score, str(regime.get("regime_label", "")), "en")
+    r_guide_en = tr_regime_guide(r_score, str(regime.get("action_guide", "")), "en")
+    lines = [
+        f"# AI & Storage Supply-Chain · US Equity Swing Research Report ({payload.get('generated_at')})",
+        "",
+        f"> Compute Hardware: `{payload.get('device_profile', {}).get('summary', '')}` | LLM Model: `{llm.get('model', 'N/A')}` | Elapsed: `{payload.get('elapsed_sec')}s`",
+        "",
+        "## 1. Market & Semiconductor Regime Thermometer",
+        f"- **Composite Regime Score**: **{regime.get('regime_score')}/100** — {r_label_en}",
+        f"- **Suggested Max Equity Exposure**: `{regime.get('suggested_max_exposure_pct')}%` | **Suggested Cash / Defensive (MCD)**: `{regime.get('suggested_defensive_cash_pct')}%`",
+        f"- **Desk Playbook**: {r_guide_en}",
+        "",
+    ]
+    if r_metrics:
+        b50 = r_metrics.get("breadth_above_50ma_pct")
+        b20 = r_metrics.get("breadth_above_20ma_pct")
+        soxx_rel = r_metrics.get("soxx_vs_spy_20d_pct")
+        vix_val = r_metrics.get("VIX")
+        us10y = r_metrics.get("US10Y_pct")
+        us10y_chg = r_metrics.get("US10Y_20d_chg_bps")
+        if b50 is not None or b20 is not None:
+            lines.append(f"  - **Internal Breadth**: `{b50 if b50 is not None else '-'}%` above 50MA | `{b20 if b20 is not None else '-'}%` above 20MA")
+        if soxx_rel is not None:
+            lines.append(f"  - **Semiconductor Leadership (SOXX / SPY 20D)**: `{soxx_rel:+.2f}%`")
+        if vix_val is not None:
+            lines.append(f"  - **VIX Volatility**: `{vix_val}`")
+        if us10y is not None:
+            chg_str = f" (20D change: `{us10y_chg:+.1f} bps`)" if us10y_chg is not None else ""
+            lines.append(f"  - **US 10Y Treasury Yield**: `{us10y}%`{chg_str}")
+
+    lines.extend(["", f"## 2. Active Holdings Diagnostics ({holding_syms_str})", ""])
+    lines.append("| Ticker | Last | Weight % | Score | Active Stop | Risk Share % | Earnings Guard | Directive |")
+    lines.append("| :--- | ---: | ---: | ---: | ---: | ---: | :--- | :--- |")
+    for h in holdings:
+        sym = str(h.get("symbol", ""))
+        fund = (stocks.get(sym) or {}).get("fundamentals")
+        earn_en = tr_earnings_flag(fund, "en") if fund else "TBD"
+        act_en = tr_holding_action(str(h.get("action", "")), "en")
+        lines.append(
+            f"| **{sym}** | ${h.get('close', '-')} | {h.get('weight_pct', '-')}% | "
+            f"{h.get('composite_score', '-')} | ${h.get('active_stop', '-')} | "
+            f"{h.get('risk_contribution_pct', '-')}% | {earn_en} | {act_en} |"
+        )
+
+    lines.extend(["", "## 3. Full Universe Top Opportunities & Execution Plans", ""])
+    lines.append("| Ticker | Sector | Last | Score | 10Y 21D Win% | Setup / Knife Risk | Entry Zone | Hard Stop | Target 1 (R:R) | Signal |")
     lines.append("| :--- | :--- | ---: | ---: | ---: | :--- | :--- | ---: | :--- | :--- |")
     for s in ranked:
         tk = s.get("trade_ticket") or {}
         an = s.get("analog") or {}
         cr = s.get("crash_analysis") or {}
+        sec_en = tr_sector(str(s.get("sector", "")), str(s.get("sector_label", "")), "en")
+        crash_en = tr_crash_badge(cr, "en")
+        sig_en = tr_signal(str(tk.get("action_signal", "")), "en")
         lines.append(
-            f"| **{s.get('symbol')}** | {s.get('sector')} | ${s.get('close')} | **{s.get('composite_score')}** | "
-            f"{an.get('win_rate_21d_pct', '-')}% | {cr.get('badge', '')} | "
+            f"| **{s.get('symbol')}** | {sec_en} | ${s.get('close')} | **{s.get('composite_score')}** | "
+            f"{an.get('win_rate_21d_pct', '-')}% | {crash_en} | "
             f"${tk.get('entry_low')}-${tk.get('entry_high')} | ${tk.get('hard_stop')} | "
-            f"${tk.get('target_1')} ({tk.get('rr_target_1')}R) | {tk.get('action_signal')} |"
+            f"${tk.get('target_1')} ({tk.get('rr_target_1')}R) | {sig_en} |"
         )
 
     if risk_mc.get("available"):
@@ -569,33 +748,63 @@ def export_markdown_report(payload: dict[str, Any], reports_dir: Path) -> Path:
         lines.extend(
             [
                 "",
-                "## 四、GPU 10万路径 Student-t 组合风险与压力测试",
-                f"- 总资产(含现金): `${risk_mc.get('total_nav_usd', 0):,.0f}` | 股票敞口: `{risk_mc.get('gross_exposure_pct')}%` | 组合年化波动率: `{risk_mc.get('portfolio_vol_ann_pct')}%`",
-                f"- **21日 (1个月) 95% VaR**: `{h21.get('var_95_pct')}%` (`${h21.get('var_95_usd', 0):,.0f}`) | **95% CVaR (尾部均值)**: `{h21.get('cvar_95_pct')}%` (`${h21.get('cvar_95_usd', 0):,.0f}`)",
-                f"- 未来1个月回撤超过 10% 的概率: `{h21.get('prob_loss_gt_10pct')}%` | 涨幅超过 10% 的概率: `{h21.get('prob_gain_gt_10pct')}%`",
+                "## 4. GPU Student-t Portfolio Risk & Stress Tests",
+                f"- Total NAV (incl. Cash): `${risk_mc.get('total_nav_usd', 0):,.0f}` | Gross Equity Exposure: `{risk_mc.get('gross_exposure_pct')}%` | Annualized Portfolio Vol: `{risk_mc.get('portfolio_vol_ann_pct')}%`",
+                f"- **21D (1M) 95% VaR**: `{h21.get('var_95_pct')}%` (`${h21.get('var_95_usd', 0):,.0f}`) | **95% CVaR (Tail Mean)**: `{h21.get('cvar_95_pct')}%` (`${h21.get('cvar_95_usd', 0):,.0f}`)",
+                f"- 1M Prob(Drawdown > 10%): `{h21.get('prob_loss_gt_10pct')}%` | 1M Prob(Gain > 10%): `{h21.get('prob_gain_gt_10pct')}%`",
                 "",
             ]
         )
         for st in risk_mc.get("stress_tests") or []:
+            scen_en = st.get("scenario_en") or _STRESS_SCENARIO_EN_FALLBACK.get(str(st.get("scenario", "")), str(st.get("scenario", "")))
             lines.append(
-                f"  - **{st['scenario']}**: 预计组合影响 `{st['est_portfolio_impact_pct']}%` (`${st['est_portfolio_impact_usd']:,.0f}`)，最大拖累: `{st['largest_drag_symbol']}`"
+                f"  - **{scen_en}**: Est. Portfolio Impact `{st['est_portfolio_impact_pct']}%` (`${st['est_portfolio_impact_usd']:,.0f}`), Largest Drag: `{st['largest_drag_symbol']}`"
             )
 
     if sc_rep and not sc_rep.get("error"):
         lines.extend(
             [
                 "",
-                "## 五、5070 Ti 本地 AI · 产业链首席策略师研判",
-                f"- **产业链冷暖**: {sc_rep.get('chain_temperature', '')}",
-                f"- **云巨头 CapEx 动向**: {sc_rep.get('capex_verdict', '')}",
-                f"- **内存/存储周期**: {sc_rep.get('storage_cycle_verdict', '')}",
-                f"- **首选细分赛道**: {sc_rep.get('top_sector_pick', '')}",
+                "## 5. AI Supply-Chain Strategist Verdict",
+                f"- **Chain Temperature**: {sc_rep.get('chain_temperature', '')}",
+                f"- **Hyperscaler CapEx Cycle**: {sc_rep.get('capex_verdict', '')}",
+                f"- **Memory / Storage Cycle**: {sc_rep.get('storage_cycle_verdict', '')}",
+                f"- **Top Sector & Leader Pick**: {sc_rep.get('top_sector_pick', '')}",
             ]
         )
+        for op in sc_rep.get("lead_lag_opportunities") or []:
+            lines.append(f"  - **Rotation Opportunity**: {op}")
+        for rf in sc_rep.get("chain_red_flags") or []:
+            lines.append(f"  - **Red Flag**: {rf}")
 
     if llm.get("pm_weekly_memo"):
-        lines.extend(["", "## 六、基金经理《本周波段交易执行计划》", "", llm["pm_weekly_memo"]])
+        lines.extend(["", "## 6. Portfolio Manager Weekly Swing Execution Plan", "", llm["pm_weekly_memo"]])
 
-    lines.extend(["", "---", "*免责声明：本报告由本地量化与开源大模型自动生成，仅供投研辅助与风险管理参考，不构成任何具体证券买卖建议。*"])
-    out_path.write_text("\n".join(lines), encoding="utf-8")
+    lines.extend(
+        [
+            "",
+            "---",
+            "*Disclaimer: This report is automatically generated by local quantitative engines and an LLM for research and risk-management assistance only. It does not constitute investment advice.*",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def export_markdown_report(
+    payload: dict[str, Any],
+    reports_dir: Path,
+    lang: str | None = None,
+) -> Path:
+    """Export an offline Markdown report matching the language used during the run ('en' or 'zh')."""
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    report_lang = (
+        lang
+        or payload.get("lang")
+        or (payload.get("llm") or {}).get("lang")
+        or "en"
+    )
+    norm_lang = "zh" if str(report_lang).lower() == "zh" else "en"
+    ts = datetime.now().strftime("%Y%m%d_%H%M")
+    out_path = reports_dir / f"weekly_trading_report_{ts}_{norm_lang}.md"
+    out_path.write_text(render_markdown_report(payload, lang=norm_lang), encoding="utf-8")
     return out_path

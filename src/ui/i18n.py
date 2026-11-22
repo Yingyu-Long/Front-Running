@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 # ==============================================================================
@@ -113,8 +114,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "screener_hdr": "Full Universe Swing Scorecard & Trade Plans",
         # Tab 3: Portfolio & Risk
         "pos_hdr": "Active Positions Book (GOOG / STX / MCD / AMZN / ORCL / SKHY)",
-        "edit_pos_exp": "Edit Account Equity, Cash & Holdings (Persists to portfolio.yaml)",
-        "lbl_equity": "Total Account Equity (USD)",
+        "edit_pos_exp": "Edit Cash, Risk Rules & Holdings (Persists to portfolio.yaml)",
+        "lbl_equity": "Total Account Equity (Auto)",
         "lbl_cash": "Available Cash (USD)",
         "lbl_risk_pct": "Max Risk / Trade (%)",
         "lbl_max_pos": "Max Single Position (%)",
@@ -305,8 +306,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "screener_hdr": "全股票池波段量化评分与交易计划总表",
         # Tab 3
         "pos_hdr": "当前持仓诊断 (GOOG / STX / MCD / AMZN / ORCL / SKHY)",
-        "edit_pos_exp": "编辑账户资金、现金与实际持仓股数/成本价（自动保存至 portfolio.yaml）",
-        "lbl_equity": "账户总资金 (USD)",
+        "edit_pos_exp": "编辑可用现金、风控规则与实际持仓股数/成本价（自动保存至 portfolio.yaml）",
+        "lbl_equity": "账户总资产 (自动计算)",
         "lbl_cash": "可用现金 (USD)",
         "lbl_risk_pct": "单笔最大止损风险 (%)",
         "lbl_max_pos": "单股最大仓位上限 (%)",
@@ -530,3 +531,142 @@ def tr_role(role: str, lang: str = "en") -> str:
     if lang == "zh":
         return "持仓" if role == "holding" else ("风向标" if role == "bellwether" else "自选")
     return "POS" if role == "holding" else ("BELL" if role == "bellwether" else "WATCH")
+
+
+STRESS_SCENARIO_EN: dict[str, str] = {
+    "AI / 半导体板块回调 (SOXX -15%)": "AI / Semiconductor Pullback (SOXX -15%)",
+    "纳斯达克科技杀估值 (QQQ -12%)": "Nasdaq Tech Valuation Compression (QQQ -12%)",
+    "存储/硬件周期急跌 (存储 -22%, 算力 -12%, 云 -6%, 防御 +1%)": (
+        "Memory / Storage Cycle Shock (Storage -22%, Compute -12%, Cloud -6%, Defensive +1%)"
+    ),
+    "极端系统性科技熊市 (QQQ -25% 冲击)": "Severe Systemic Tech Bear Shock (QQQ -25%)",
+}
+
+SECTOR_RAW_LABEL_EN: dict[str, str] = {
+    "上游 · 云巨头与 AI 基础设施 (CapEx 金主)": "Tier 1 · Cloud & AI Hyperscalers (CapEx)",
+    "中游 · AI 算力芯片 / 晶圆代工 / 光通信": "Tier 2 · Compute Chips & Optical",
+    "下游 · HBM / DRAM / NAND / 企业级存储周期": "Tier 3 · HBM / Memory & Storage Cycle",
+    "高弹性焦点巨头": "High-Beta Mega Disruptors",
+    "防御压舱石 (低相关性对冲)": "Defensive Hedge (Low-Beta)",
+    "现金储备 (Cash)": "Cash Reserve",
+    "自定义单股体检": "Custom Ticker Lookup",
+}
+
+CRASH_BADGE_STR_EN: dict[str, str] = {
+    "上升趋势/常规波段": "Healthy Uptrend",
+    "警惕接飞刀 (禁左侧重仓)": "Falling Knife (Avoid)",
+    "左侧超卖观察 (等止跌放量阳线)": "Oversold Watch (Wait Base)",
+    "高概率错杀回踩 (留意分批低吸)": "Mispriced Dip Setup",
+}
+
+SKIP_REASON_EN: dict[str, str] = {
+    "本次跳过回测模块": "Backtest module skipped for this run.",
+    "本次跳过 ML 模块": "ML Alpha module skipped for this run.",
+    "暂无有效持仓或最新行情": "No active holdings or latest quotes available.",
+    "持仓历史重叠天数不足": "Insufficient overlapping price history across holdings.",
+    "持仓收益率重叠样本少于25个交易日": "Fewer than 25 overlapping trading days across holdings.",
+}
+
+
+def tr_stress_scenario(row: dict[str, Any], lang: str = "en") -> str:
+    raw = str(row.get("scenario", ""))
+    if lang == "zh":
+        return raw
+    if row.get("scenario_en"):
+        return str(row["scenario_en"])
+    return STRESS_SCENARIO_EN.get(raw, raw)
+
+
+def tr_sector_label(raw_label: str, lang: str = "en") -> str:
+    cleaned = re.sub(r"^[\U0001F000-\U0001FAFF\u2600-\u27BF\s]+", "", str(raw_label or "")).strip()
+    if lang == "zh":
+        return cleaned
+    if cleaned in SECTOR_RAW_LABEL_EN:
+        return SECTOR_RAW_LABEL_EN[cleaned]
+    if cleaned in SECTOR_LABELS_EN:
+        return SECTOR_LABELS_EN[cleaned]
+    return cleaned
+
+
+def tr_crash_badge_str(raw_badge: str, lang: str = "en") -> str:
+    cleaned = str(raw_badge or "").strip()
+    if lang == "zh":
+        return cleaned or "-"
+    for zh_k, en_v in CRASH_BADGE_STR_EN.items():
+        if zh_k in cleaned:
+            return en_v
+    return cleaned or "-"
+
+
+def tr_stage_label_str(raw_stage: str, lang: str = "en") -> str:
+    cleaned = str(raw_stage or "").strip()
+    if lang == "zh":
+        return cleaned or "-"
+    m = re.search(r"Stage\s*([1-4])", cleaned)
+    if m:
+        return STAGE_EN.get(int(m.group(1)), cleaned)
+    return cleaned or "-"
+
+
+def tr_earnings_flag_str(raw_flag: str, lang: str = "en") -> str:
+    cleaned = str(raw_flag or "").strip()
+    if lang == "zh":
+        return cleaned or "待确认"
+    if not cleaned or cleaned in ("待确认", "待刷新"):
+        return "TBD"
+    m = re.search(r"(\d+)", cleaned)
+    days = int(m.group(1)) if m else None
+    if "高危" in cleaned:
+        return f"HIGH RISK ({days}d)" if days is not None else "HIGH RISK"
+    if "临近" in cleaned:
+        return f"SOON ({days}d)" if days is not None else "SOON"
+    if "安全" in cleaned:
+        return f"CLEAR ({days}d)" if days is not None else "CLEAR"
+    return cleaned
+
+
+def tr_penalty(text: str, lang: str = "en") -> str:
+    s = str(text or "").strip()
+    if lang == "zh":
+        return s
+    m_ed = re.search(r"财报仅剩\s*(\d+)\s*天", s)
+    if m_ed:
+        return f"Earnings in {m_ed.group(1)}d (-7 pts binary risk guard)"
+    if "两周内发布财报" in s:
+        return "Earnings within 14d (-3 pts)"
+    m_sec = re.search(r"SEC 存在\s*(\d+)\s*条敏感公告", s)
+    if m_sec:
+        return f"{m_sec.group(1)} SEC red-flag filing(s)"
+    if "放量破位下跌期" in s:
+        return "High-volume breakdown (score capped at 48)"
+    return s
+
+
+def tr_pair_interpretation(row: dict[str, Any], lang: str = "en") -> str:
+    if lang == "zh":
+        return str(row.get("interpretation", ""))
+    if row.get("interpretation_en"):
+        return str(row["interpretation_en"])
+    a = str(row.get("left", ""))
+    b = str(row.get("right", ""))
+    z = float(row.get("zscore_60d") or 0.0)
+    r_a = float(row.get("left_21d_pct") or 0.0)
+    r_b = float(row.get("right_21d_pct") or 0.0)
+    if z >= 1.8:
+        return f"{a} stretched vs {b} (Z={z:+.2f}): consider trimming {a} or rotating to {b}"
+    if z <= -1.8:
+        return f"{a} deeply oversold vs {b} (Z={z:+.2f}): mean-reversion edge favors {a} if fundamentals hold"
+    if r_a > r_b + 5.0:
+        return f"Momentum leader: {a} outperforming {b} over 21D ({r_a - r_b:+.1f}%)"
+    if r_b > r_a + 5.0:
+        return f"Momentum leader: {b} outperforming {a} over 21D ({r_b - r_a:+.1f}%)"
+    return "Balanced spread, no extreme divergence"
+
+
+def tr_skip_reason(reason: Any, lang: str = "en", default_en: str = "", default_zh: str = "") -> str:
+    s = str(reason or "").strip()
+    if not s:
+        return default_zh if lang == "zh" else default_en
+    if lang == "zh":
+        return s
+    return SKIP_REASON_EN.get(s, s)

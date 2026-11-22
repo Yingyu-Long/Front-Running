@@ -1,46 +1,39 @@
-# ==============================================================================
-# Account & Active Holdings Configuration
-# (Can also be edited and saved visually in the "Positions & Risk" UI tab)
-# ==============================================================================
-
 account:
-  total_equity_usd: 100000.0       # Total US equity account size (USD) for position sizing
-  cash_usd: 15000.0                # Available cash balance (USD)
-  max_risk_per_trade_pct: 1.25     # Max stop-loss risk per trade as % of equity (typical swing: 1.0% - 1.5%)
-  max_single_position_pct: 20.0    # Max weight cap per single position (%)
-  max_sector_exposure_pct: 45.0    # Max exposure warning threshold per sector (%)
-  min_reward_risk_ratio: 2.0       # Minimum reward-to-risk threshold for opening new positions
-  holding_horizon_days: 30         # Target holding period (20-45 trading days, ~1-2 months)
-
-# Current holdings (pre-populated with 6 core tickers; update shares & avg_cost in the UI)
+  total_equity_usd: 14613.01
+  cash_usd: 0.0
+  max_risk_per_trade_pct: 1.25
+  max_single_position_pct: 20.0
+  max_sector_exposure_pct: 45.0
+  min_reward_risk_ratio: 2.0
+  holding_horizon_days: 30
 holdings:
-  - symbol: "GOOG"
-    shares: 50
-    avg_cost: 0.0                  # Set to 0 if cost basis is not entered yet (uses latest close for valuation)
-    stop_loss: 0.0                 # Optional manual stop-loss; 0 = auto-calculated via structure + ATR
-    thesis: "云与 AI 核心底仓"
-  - symbol: "STX"
-    shares: 30
-    avg_cost: 0.0
-    stop_loss: 0.0
-    thesis: "企业级大容量 HDD 周期波段"
-  - symbol: "MCD"
-    shares: 45
-    avg_cost: 0.0
-    stop_loss: 0.0
-    thesis: "消费防御对冲仓位"
-  - symbol: "AMZN"
-    shares: 60
-    avg_cost: 0.0
-    stop_loss: 0.0
-    thesis: "AWS 云 + AI 基建核心"
-  - symbol: "ORCL"
-    shares: 100
-    avg_cost: 0.0
-    stop_loss: 0.0
-    thesis: "OCI AI 算力租赁高弹性"
-  - symbol: "SKHY"
-    shares: 100
-    avg_cost: 0.0
-    stop_loss: 0.0
-    thesis: "HBM 绝对龙头"
+- symbol: GOOG
+  shares: 30.0
+  avg_cost: 312.0
+  stop_loss: 0.0
+  thesis: 云与 AI 核心底仓
+- symbol: STX
+  shares: 4.0
+  avg_cost: 661.0
+  stop_loss: 0.0
+  thesis: 企业级大容量 HDD 周期波段
+- symbol: MCD
+  shares: 12.0
+  avg_cost: 231.0
+  stop_loss: 0.0
+  thesis: 消费防御对冲仓位
+- symbol: AMZN
+  shares: 1.0
+  avg_cost: 269.0
+  stop_loss: 0.0
+  thesis: AWS 云 + AI 基建核心
+- symbol: ORCL
+  shares: 3.0
+  avg_cost: 129.0
+  stop_loss: 0.0
+  thesis: OCI AI 算力租赁高弹性
+- symbol: SKHY
+  shares: 10.0
+  avg_cost: 134.0
+  stop_loss: 0.0
+  thesis: HBM 绝对龙头

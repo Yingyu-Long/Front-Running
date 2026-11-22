@@ -19,6 +19,7 @@ from src.config_loader import (
 )
 from src.data.market_data import MarketDataFetcher
 from src.engine.orchestrator import (
+    render_markdown_report,
     run_full_analysis_pipeline,
     run_on_demand_single_ticker_check,
 )
@@ -48,14 +49,22 @@ from src.ui.grid_charts import (
 from src.ui.i18n import (
     t,
     tr_crash_badge,
+    tr_crash_badge_str,
     tr_earnings_flag,
+    tr_earnings_flag_str,
     tr_holding_action,
+    tr_pair_interpretation,
+    tr_penalty,
     tr_regime_guide,
     tr_regime_label,
     tr_role,
     tr_sector,
+    tr_sector_label,
     tr_signal,
+    tr_skip_reason,
     tr_stage,
+    tr_stage_label_str,
+    tr_stress_scenario,
 )
 
 st.set_page_config(
@@ -486,8 +495,12 @@ def main() -> None:
     # ==========================================================================
     top_c1, top_c2, top_c3 = st.columns([2.0, 4.1, 1.05], vertical_alignment="center")
     with top_c3:
-        is_zh = st.toggle("EN / 中文", value=False, key="ui_lang_toggle")
+        if "ui_lang_toggle" not in st.session_state:
+            st.session_state["ui_lang_toggle"] = str(st.query_params.get("lang", "en")).lower() == "zh"
+        is_zh = st.toggle("EN / 中文", key="ui_lang_toggle")
         lang = "zh" if is_zh else "en"
+        if st.query_params.get("lang") != lang:
+            st.query_params["lang"] = lang
 
     payload: dict[str, Any] | None = st.session_state.get("active_payload")
     dev = get_device_profile(settings.compute_device)
@@ -582,11 +595,25 @@ def main() -> None:
             except Exception as exc:
                 st.error(f"{t('scan_failed', lang)}: {exc}")
 
-        if payload and payload.get("report_path") and Path(payload["report_path"]).exists():
+        if payload:
+            run_lang = str(
+                payload.get("lang")
+                or (payload.get("llm") or {}).get("lang")
+                or lang
+            ).lower()
+            run_lang = "zh" if run_lang == "zh" else "en"
+            rp = Path(payload["report_path"]) if payload.get("report_path") else None
+            if rp and rp.exists() and rp.name.endswith(f"_{run_lang}.md"):
+                md_bytes = rp.read_bytes()
+                md_name = rp.name
+            else:
+                md_bytes = render_markdown_report(payload, lang=run_lang).encode("utf-8")
+                ts_slug = str(payload.get("generated_at", "")).replace("-", "").replace(":", "").replace(" ", "_")[:13] or "report"
+                md_name = f"weekly_trading_report_{ts_slug}_{run_lang}.md"
             st.download_button(
                 f"{t('btn_download_md', lang)}",
-                data=Path(payload["report_path"]).read_bytes(),
-                file_name=Path(payload["report_path"]).name,
+                data=md_bytes,
+                file_name=md_name,
                 mime="text/markdown",
                 use_container_width=True,
             )
@@ -611,36 +638,47 @@ def main() -> None:
         st.info(t("no_snap_banner", lang))
 
     # ==========================================================================
-    # MAIN BROKER NAVIGATION TABS
+    # MAIN BROKER NAVIGATION BAR (Persists across language toggles & F5 refresh)
     # ==========================================================================
-    tabs = st.tabs(
-        [
-            t("tab_desk", lang),
-            t("tab_scanner", lang),
-            t("tab_portfolio", lang),
-            t("tab_chain", lang),
-            t("tab_backtest", lang),
-            t("tab_grid", lang),
-            t("tab_journal", lang),
-            t("tab_guide", lang),
-        ]
-    )
+    tab_keys = ["desk", "scanner", "portfolio", "chain", "backtest", "grid", "journal", "guide"]
+    qp_tab = str(st.query_params.get("tab", "desk")).lower().strip()
+    if qp_tab not in tab_keys:
+        qp_tab = "desk"
+    if "active_tab" not in st.session_state or st.session_state["active_tab"] not in tab_keys:
+        st.session_state["active_tab"] = qp_tab
 
-    with tabs[0]:
+    active_tab = st.segmented_control(
+        "Navigation",
+        options=tab_keys,
+        format_func=lambda k: t(f"tab_{k}", lang),
+        selection_mode="single",
+        required=True,
+        key="active_tab",
+        label_visibility="collapsed",
+        width="stretch",
+    )
+    if active_tab not in tab_keys:
+        active_tab = qp_tab
+    if st.query_params.get("tab") != active_tab:
+        st.query_params["tab"] = active_tab
+
+    st.markdown('<div class="header-divider" style="margin-top:6px;"></div>', unsafe_allow_html=True)
+
+    if active_tab == "desk":
         _render_trade_desk_tab(payload, settings, universe_cfg, portfolio_cfg, db, llm_model, llm_base_url, lang)
-    with tabs[1]:
+    elif active_tab == "scanner":
         _render_scanner_regime_tab(payload, lang)
-    with tabs[2]:
+    elif active_tab == "portfolio":
         _render_portfolio_risk_tab(payload, portfolio_cfg, lang)
-    with tabs[3]:
+    elif active_tab == "chain":
         _render_supply_chain_tab(payload, lang)
-    with tabs[4]:
+    elif active_tab == "backtest":
         _render_backtest_ml_tab(payload, lang)
-    with tabs[5]:
+    elif active_tab == "grid":
         _render_grid_lab_tab(settings, universe_cfg, portfolio_cfg, db, lang)
-    with tabs[6]:
+    elif active_tab == "journal":
         _render_journal_tab(db, lang)
-    with tabs[7]:
+    elif active_tab == "guide":
         _render_guide_tab(dev, lang)
 
 
@@ -669,9 +707,15 @@ def _render_trade_desk_tab(
     valid_syms = [s for s in configured_syms if s in stocks and not stocks[s].get("error")]
     display_syms = valid_syms if valid_syms else configured_syms
 
-    # Default selected ticker
+    # Default selected ticker (persisted via query params across browser refreshes)
     if "desk_selected_sym" not in st.session_state:
-        st.session_state["desk_selected_sym"] = display_syms[0] if display_syms else "GOOG"
+        qp_sym = str(st.query_params.get("sym", "")).upper().strip()
+        if qp_sym and (qp_sym in display_syms or qp_sym in stocks):
+            st.session_state["desk_selected_sym"] = qp_sym
+        else:
+            st.session_state["desk_selected_sym"] = display_syms[0] if display_syms else "GOOG"
+    if st.query_params.get("sym") != st.session_state["desk_selected_sym"]:
+        st.query_params["sym"] = st.session_state["desk_selected_sym"]
 
     col_wl, col_chart, col_ticket = st.columns([1.08, 2.22, 1.05], gap="medium")
 
@@ -1012,16 +1056,26 @@ def _render_trade_desk_tab(
                 )
                 if lang == "zh":
                     st.caption(cr.get("reason", ""))
-                st.markdown(
-                    f"""
-                    - **Trend / Momentum**: RSI14 `{stock_data.get('rsi14')}` · ADX `{stock_data.get('adx14')}` · ATR14 `${stock_data.get('atr14')}` (`{stock_data.get('atr_pct')}%`) · VCP `{stock_data.get('vcp_ratio')}`
-                    - **Institutional Flow**: Up/Down Vol `{stock_data.get('up_down_vol_ratio_20d')}` · CMF20 `{stock_data.get('cmf20')}` · Accum `{stock_data.get('accum_days_20d')}d` / Dist `{stock_data.get('dist_days_20d')}d`
-                    - **Relative Strength**: vs QQQ 21D `{_fmt_pct(stock_data.get('rs_qqq_21d_pct'))}` · vs Sector 21D `{_fmt_pct(stock_data.get('rs_sector_21d_pct'))}`
-                    - **Fundamentals**: MCap `${fn.get('market_cap_b')}B` · Fwd P/E `{fn.get('forward_pe')}` · Rev YoY `{_fmt_pct(fn.get('revenue_growth_yoy_pct'))}` · GM `{_fmt_pct(fn.get('gross_margin_pct'), False)}` · Last EPS Beat `{_fmt_pct(fn.get('last_eps_surprise_pct'))}`
-                    """
-                )
+                    st.markdown(
+                        f"""
+                        - **趋势 / 动能**：RSI14 `{stock_data.get('rsi14')}` · ADX `{stock_data.get('adx14')}` · ATR14 `${stock_data.get('atr14')}` (`{stock_data.get('atr_pct')}%`) · VCP `{stock_data.get('vcp_ratio')}`
+                        - **机构量价流**：涨跌量比 `{stock_data.get('up_down_vol_ratio_20d')}` · CMF20 `{stock_data.get('cmf20')}` · 吸筹 `{stock_data.get('accum_days_20d')}天` / 派发 `{stock_data.get('dist_days_20d')}天`
+                        - **相对强度**：21日跑赢 QQQ `{_fmt_pct(stock_data.get('rs_qqq_21d_pct'))}` · 21日跑赢赛道 `{_fmt_pct(stock_data.get('rs_sector_21d_pct'))}`
+                        - **基本面**：市值 `${fn.get('market_cap_b')}B` · 远期 P/E `{fn.get('forward_pe')}` · 营收同比 `{_fmt_pct(fn.get('revenue_growth_yoy_pct'))}` · 毛利率 `{_fmt_pct(fn.get('gross_margin_pct'), False)}` · 最近 EPS 超预期 `{_fmt_pct(fn.get('last_eps_surprise_pct'))}`
+                        """
+                    )
+                else:
+                    st.markdown(
+                        f"""
+                        - **Trend / Momentum**: RSI14 `{stock_data.get('rsi14')}` · ADX `{stock_data.get('adx14')}` · ATR14 `${stock_data.get('atr14')}` (`{stock_data.get('atr_pct')}%`) · VCP `{stock_data.get('vcp_ratio')}`
+                        - **Institutional Flow**: Up/Down Vol `{stock_data.get('up_down_vol_ratio_20d')}` · CMF20 `{stock_data.get('cmf20')}` · Accum `{stock_data.get('accum_days_20d')}d` / Dist `{stock_data.get('dist_days_20d')}d`
+                        - **Relative Strength**: vs QQQ 21D `{_fmt_pct(stock_data.get('rs_qqq_21d_pct'))}` · vs Sector 21D `{_fmt_pct(stock_data.get('rs_sector_21d_pct'))}`
+                        - **Fundamentals**: MCap `${fn.get('market_cap_b')}B` · Fwd P/E `{fn.get('forward_pe')}` · Rev YoY `{_fmt_pct(fn.get('revenue_growth_yoy_pct'))}` · GM `{_fmt_pct(fn.get('gross_margin_pct'), False)}` · Last EPS Beat `{_fmt_pct(fn.get('last_eps_surprise_pct'))}`
+                        """
+                    )
                 if stock_data.get("penalties"):
-                    st.warning(f"{t('penalties_lbl', lang)}: " + " · ".join(stock_data["penalties"]))
+                    tr_pens = [tr_penalty(p, lang) for p in stock_data["penalties"]]
+                    st.warning(f"{t('penalties_lbl', lang)}: " + " · ".join(tr_pens))
             with q2:
                 st.plotly_chart(
                     make_pillar_radar(active_sym, stock_data.get("pillars") or {}, lang=lang),
@@ -1038,7 +1092,17 @@ def _render_trade_desk_tab(
                 a5.metric("Median MAE" if lang == "en" else "中位最大回撤", _fmt_pct(an.get("median_mae_21d_pct")))
                 st.markdown(f"**{t('analog_hdr', lang)}**")
                 if an.get("top_matches"):
-                    st.dataframe(pd.DataFrame(an["top_matches"]), use_container_width=True, hide_index=True)
+                    an_df = pd.DataFrame(an["top_matches"]).rename(
+                        columns={
+                            "symbol": "代码" if is_zh else "Ticker",
+                            "date": "匹配日期" if is_zh else "Match Date",
+                            "similarity": "相似度" if is_zh else "Similarity",
+                            "fwd_21d_pct": "后续21日%" if is_zh else "Fwd 21D %",
+                            "fwd_42d_pct": "后续42日%" if is_zh else "Fwd 42D %",
+                            "mae_21d_pct": "21日最大回撤%" if is_zh else "21D MAE %",
+                        }
+                    )
+                    st.dataframe(an_df, use_container_width=True, hide_index=True)
             else:
                 st.caption(t("analog_empty", lang))
 
@@ -1069,7 +1133,10 @@ def _render_trade_desk_tab(
 
         with sub_tabs[3]:
             st.markdown(f"**{t('sec_hdr', lang)}**")
-            st.caption(sec.get("sec_digest", "No SEC EDGAR summary available."))
+            st.caption(
+                sec.get("sec_digest")
+                or ("暂无 SEC EDGAR 披露摘要。" if is_zh else "No SEC EDGAR summary available.")
+            )
             for rf in sec.get("red_flag_filings") or []:
                 st.error(f"[FLAG] {rf}")
             for item in (stock_data.get("news") or [])[:7]:
@@ -1113,9 +1180,9 @@ def _render_trade_desk_tab(
                 <div class="ot-row"><span class="ot-k">{t('lbl_trail_stop', lang)}</span><span class="ot-v neu-amber">${_fmt_num(tk.get('trailing_stop_guide'))}</span></div>
                 <div class="ot-row"><span class="ot-k">{t('lbl_target1', lang)}</span><span class="ot-v pos-green">${_fmt_num(tk.get('target_1'))} ({tk.get('rr_target_1', 0)}R)</span></div>
                 <div class="ot-row"><span class="ot-k">{t('lbl_target2', lang)}</span><span class="ot-v pos-green">${_fmt_num(tk.get('target_2'))} ({tk.get('rr_target_2', 0)}R)</span></div>
-                <div class="ot-row"><span class="ot-k">GPU 10Y / ML</span><span class="ot-v">{an_wr} / {ml_prob}</span></div>
-                <div class="ot-row"><span class="ot-k">{t('lbl_pos_size', lang)}</span><span class="ot-v">{tk.get('recommended_shares', 0)} shs ({tk.get('recommended_weight_pct', 0)}%)</span></div>
-                <div class="ot-row"><span class="ot-k">Notional / Risk</span><span class="ot-v">{_fmt_usd(tk.get('recommended_usd'), 0)} / {_fmt_usd(tk.get('planned_max_risk_usd'), 0)}</span></div>
+                <div class="ot-row"><span class="ot-k">{'GPU 10年胜率 / ML' if is_zh else 'GPU 10Y / ML'}</span><span class="ot-v">{an_wr} / {ml_prob}</span></div>
+                <div class="ot-row"><span class="ot-k">{t('lbl_pos_size', lang)}</span><span class="ot-v">{tk.get('recommended_shares', 0)} {'股' if is_zh else 'shs'} ({tk.get('recommended_weight_pct', 0)}%)</span></div>
+                <div class="ot-row"><span class="ot-k">{'建议金额 / 最大风险' if is_zh else 'Notional / Risk'}</span><span class="ot-v">{_fmt_usd(tk.get('recommended_usd'), 0)} / {_fmt_usd(tk.get('planned_max_risk_usd'), 0)}</span></div>
             </div>
             """
         )
@@ -1146,7 +1213,7 @@ def _render_trade_desk_tab(
                 <div class="order-ticket" style="border-color:#2962FF;">
                     <div class="ot-header">
                         <span class="ot-title">{'ACTIVE POSITION' if lang == 'en' else '当前持仓监控'}</span>
-                        <span class="qb-pill pill-blue">{matched_h.get('shares', 0):g} shs</span>
+                        <span class="qb-pill pill-blue">{matched_h.get('shares', 0):g} {'股' if is_zh else 'shs'}</span>
                     </div>
                     <div style="margin-bottom:8px;font-size:0.80rem;font-weight:700;color:#F0F6FC;">{h_act}</div>
                     <div class="ot-row"><span class="ot-k">{'Market Value' if lang == 'en' else '持仓市值'}</span><span class="ot-v">{_fmt_usd(matched_h.get('market_value_usd'), 0)} ({matched_h.get('weight_pct', 0)}%)</span></div>
@@ -1202,8 +1269,21 @@ def _render_scanner_regime_tab(payload: dict[str, Any] | None, lang: str) -> Non
 
     diffs = payload.get("weekly_diff") or []
     if diffs:
+        is_zh = lang == "zh"
         st.subheader(t("diff_hdr", lang))
-        st.dataframe(pd.DataFrame(diffs[:6]), use_container_width=True, hide_index=True)
+        diff_rows = [
+            {
+                t("col_sym", lang): d.get("symbol"),
+                ("上次评分" if is_zh else "Prev Score"): d.get("prev_score"),
+                ("当前评分" if is_zh else "Curr Score"): d.get("curr_score"),
+                ("评分变化" if is_zh else "Score Delta"): d.get("score_delta"),
+                ("区间涨跌%" if is_zh else "Price Chg %"): d.get("price_change_since_last_pct"),
+                ("上次信号" if is_zh else "Prev Signal"): tr_signal(str(d.get("prev_signal", "")), lang),
+                ("当前信号" if is_zh else "Curr Signal"): tr_signal(str(d.get("curr_signal", "")), lang),
+            }
+            for d in diffs[:6]
+        ]
+        st.dataframe(pd.DataFrame(diff_rows), use_container_width=True, hide_index=True)
 
     st.subheader(t("screener_hdr", lang))
     stocks = payload.get("stocks") or {}
@@ -1219,7 +1299,7 @@ def _render_scanner_regime_tab(payload: dict[str, Any] | None, lang: str) -> Non
             {
                 t("col_sym", lang): sym,
                 t("col_role", lang): tr_role(str(s.get("role", "watchlist")), lang),
-                t("col_sector", lang): s.get("sector"),
+                t("col_sector", lang): tr_sector(str(s.get("sector", "")), str(s.get("sector_label", "")), lang),
                 t("col_price", lang): s.get("close"),
                 t("col_1d", lang): s.get("chg_1d_pct"),
                 t("col_21d", lang): s.get("ret_21d_pct"),
@@ -1250,38 +1330,103 @@ def _render_portfolio_risk_tab(
     portfolio_cfg: dict[str, Any],
     lang: str,
 ) -> None:
+    is_zh = lang == "zh"
     st.subheader(t("pos_hdr", lang))
-    with st.expander(f"{t('edit_pos_exp', lang)}", expanded=False):
-        acct = portfolio_cfg.get("account") or {}
-        c1, c2, c3, c4 = st.columns(4)
-        new_eq = c1.number_input(t("lbl_equity", lang), value=float(acct.get("total_equity_usd", 100000.0)), step=5000.0)
-        new_cash = c2.number_input(t("lbl_cash", lang), value=float(acct.get("cash_usd", 15000.0)), step=1000.0)
-        new_risk = c3.number_input(t("lbl_risk_pct", lang), value=float(acct.get("max_risk_per_trade_pct", 1.25)), step=0.25, min_value=0.25, max_value=5.0)
-        new_cap = c4.number_input(t("lbl_max_pos", lang), value=float(acct.get("max_single_position_pct", 20.0)), step=2.5, min_value=5.0, max_value=50.0)
 
-        h_df = pd.DataFrame(portfolio_cfg.get("holdings") or [])
+    # Build lookup of latest known prices (live_quotes -> quick_quotes -> snapshot stocks -> holdings_diagnosis)
+    px_lookup: dict[str, float] = {}
+    for h in (payload or {}).get("holdings_diagnosis") or []:
+        if h.get("symbol") and h.get("close") is not None:
+            px_lookup[str(h["symbol"]).upper().strip()] = float(h["close"])
+    for sym, sdata in ((payload or {}).get("stocks") or {}).items():
+        if isinstance(sdata, dict) and sdata.get("close") is not None:
+            px_lookup[str(sym).upper().strip()] = float(sdata["close"])
+    for sym, qq in (st.session_state.get("quick_quotes") or {}).items():
+        if isinstance(qq, dict) and qq.get("close") is not None:
+            px_lookup[str(sym).upper().strip()] = float(qq["close"])
+    merged_lq = dict((payload or {}).get("live_quotes") or {})
+    merged_lq.update(st.session_state.get("live_quotes") or {})
+    for sym, lq in merged_lq.items():
+        if isinstance(lq, dict) and lq.get("regular_price") is not None:
+            px_lookup[str(sym).upper().strip()] = float(lq["regular_price"])
+
+    def _calc_holdings_value(rows_iter: list[dict[str, Any]]) -> tuple[float, int]:
+        total_v = 0.0
+        priced_cnt = 0
+        for row in rows_iter:
+            sym = str(row.get("symbol", "")).upper().strip()
+            try:
+                sh = float(row.get("shares") or 0.0)
+            except Exception:
+                sh = 0.0
+            if not sym or sh <= 0:
+                continue
+            px = px_lookup.get(sym)
+            if px is not None and px > 0:
+                total_v += sh * px
+                priced_cnt += 1
+            else:
+                try:
+                    avg_c = float(row.get("avg_cost") or 0.0)
+                except Exception:
+                    avg_c = 0.0
+                if avg_c > 0:
+                    total_v += sh * avg_c
+        return round(total_v, 2), priced_cnt
+
+    acct = portfolio_cfg.get("account") or {}
+    saved_holdings = portfolio_cfg.get("holdings") or []
+    saved_cash = float(acct.get("cash_usd", 15000.0))
+    curr_stocks_val, priced_cnt = _calc_holdings_value(saved_holdings)
+    curr_total_eq = round(curr_stocks_val + saved_cash, 2)
+
+    s1, s2, s3 = st.columns(3)
+    s1.metric(
+        t("lbl_equity", lang),
+        _fmt_usd(curr_total_eq, 0),
+        (f"{priced_cnt}/{len(saved_holdings)} live priced" if not is_zh else f"{priced_cnt}/{len(saved_holdings)} 只已按现价估值"),
+    )
+    s2.metric("Holdings Market Value" if not is_zh else "股票持仓市值", _fmt_usd(curr_stocks_val, 0))
+    s3.metric(t("lbl_cash", lang), _fmt_usd(saved_cash, 0))
+
+    with st.expander(f"{t('edit_pos_exp', lang)}", expanded=False):
+        c1, c2, c3 = st.columns(3)
+        new_cash = c1.number_input(t("lbl_cash", lang), value=saved_cash, step=1000.0, min_value=0.0)
+        new_risk = c2.number_input(t("lbl_risk_pct", lang), value=float(acct.get("max_risk_per_trade_pct", 1.25)), step=0.25, min_value=0.25, max_value=5.0)
+        new_cap = c3.number_input(t("lbl_max_pos", lang), value=float(acct.get("max_single_position_pct", 20.0)), step=2.5, min_value=5.0, max_value=50.0)
+
+        h_df = pd.DataFrame(saved_holdings)
         if h_df.empty:
             h_df = pd.DataFrame(columns=["symbol", "shares", "avg_cost", "stop_loss", "thesis"])
         edited_df = st.data_editor(h_df, num_rows="dynamic", use_container_width=True)
+
+        cleaned: list[dict[str, Any]] = []
+        for _, row in edited_df.iterrows():
+            sym = str(row.get("symbol", "")).upper().strip()
+            if sym and sym != "NAN":
+                cleaned.append(
+                    {
+                        "symbol": sym,
+                        "shares": float(row.get("shares") or 0.0),
+                        "avg_cost": float(row.get("avg_cost") or 0.0),
+                        "stop_loss": float(row.get("stop_loss") or 0.0),
+                        "thesis": str(row.get("thesis") or ""),
+                    }
+                )
+        edited_stocks_val, _ = _calc_holdings_value(cleaned)
+        auto_eq = round(edited_stocks_val + float(new_cash), 2)
+        st.caption(
+            f"Auto-calculated Total Account Equity: **{_fmt_usd(auto_eq, 2)}** = Holdings {_fmt_usd(edited_stocks_val, 2)} + Cash {_fmt_usd(new_cash, 2)}"
+            if not is_zh
+            else f"自动计算账户总资产：**{_fmt_usd(auto_eq, 2)}** = 持仓市值 {_fmt_usd(edited_stocks_val, 2)} + 可用现金 {_fmt_usd(new_cash, 2)}"
+        )
+
         if st.button(f"{t('btn_save_pos', lang)}", type="primary"):
-            cleaned = []
-            for _, row in edited_df.iterrows():
-                sym = str(row.get("symbol", "")).upper().strip()
-                if sym:
-                    cleaned.append(
-                        {
-                            "symbol": sym,
-                            "shares": float(row.get("shares") or 0.0),
-                            "avg_cost": float(row.get("avg_cost") or 0.0),
-                            "stop_loss": float(row.get("stop_loss") or 0.0),
-                            "thesis": str(row.get("thesis") or ""),
-                        }
-                    )
             save_portfolio(
                 {
                     "account": {
                         **acct,
-                        "total_equity_usd": new_eq,
+                        "total_equity_usd": auto_eq,
                         "cash_usd": new_cash,
                         "max_risk_per_trade_pct": new_risk,
                         "max_single_position_pct": new_cap,
@@ -1317,7 +1462,14 @@ def _render_portfolio_risk_tab(
 
     risk_mc = payload.get("risk_mc") or {}
     if not risk_mc.get("available"):
-        st.warning(risk_mc.get("reason", "Monte Carlo unavailable."))
+        st.warning(
+            tr_skip_reason(
+                risk_mc.get("reason"),
+                lang,
+                default_en="Monte Carlo unavailable.",
+                default_zh="暂无法运行蒙特卡洛模拟。",
+            )
+        )
         return
 
     st.divider()
@@ -1334,11 +1486,11 @@ def _render_portfolio_risk_tab(
     h42 = risk_mc.get("horizon_42d") or {}
 
     k1, k2, k3, k4, k5 = st.columns(5)
-    k1.metric(t("mc_gross", lang), f"{risk_mc.get('gross_exposure_pct')}%", f"NAV {_fmt_usd(risk_mc.get('total_nav_usd'), 0)}")
-    k2.metric(t("mc_vol", lang), f"{risk_mc.get('portfolio_vol_ann_pct')}%", f"Div {risk_mc.get('diversification_ratio')}x")
+    k1.metric(t("mc_gross", lang), f"{risk_mc.get('gross_exposure_pct')}%", f"{'净值' if is_zh else 'NAV'} {_fmt_usd(risk_mc.get('total_nav_usd'), 0)}")
+    k2.metric(t("mc_vol", lang), f"{risk_mc.get('portfolio_vol_ann_pct')}%", f"{'分散度' if is_zh else 'Div'} {risk_mc.get('diversification_ratio')}x")
     k3.metric(t("mc_var", lang), f"{h21.get('var_95_pct')}%", _fmt_usd(h21.get("var_95_usd"), 0))
     k4.metric(t("mc_cvar", lang), f"{h21.get('cvar_95_pct')}%", _fmt_usd(h21.get("cvar_95_usd"), 0))
-    k5.metric(t("mc_pdd", lang), f"{h42.get('prob_loss_gt_10pct')}%", f"Gain>10%: {h42.get('prob_gain_gt_10pct')}%")
+    k5.metric(t("mc_pdd", lang), f"{h42.get('prob_loss_gt_10pct')}%", f"{'涨幅>10%' if is_zh else 'Gain>10%'}: {h42.get('prob_gain_gt_10pct')}%")
 
     c1, c2 = st.columns(2)
     with c1:
@@ -1351,10 +1503,27 @@ def _render_portfolio_risk_tab(
         st.plotly_chart(make_correlation_heatmap(risk_mc.get("correlation_matrix") or {}, lang=lang), use_container_width=True)
     with c4:
         st.markdown(f"#### {t('stress_hdr', lang)}")
-        st.dataframe(pd.DataFrame(risk_mc.get("stress_tests") or []), use_container_width=True, hide_index=True)
+        st_rows = [
+            {
+                ("压力情景" if is_zh else "Scenario"): tr_stress_scenario(row, lang),
+                ("组合影响%" if is_zh else "Impact %"): row.get("est_portfolio_impact_pct"),
+                ("影响金额($)" if is_zh else "Impact ($)"): row.get("est_portfolio_impact_usd"),
+                ("最大拖累" if is_zh else "Largest Drag"): row.get("largest_drag_symbol"),
+                ("拖累额($)" if is_zh else "Drag ($)"): row.get("largest_drag_usd"),
+            }
+            for row in (risk_mc.get("stress_tests") or [])
+        ]
+        st.dataframe(pd.DataFrame(st_rows), use_container_width=True, hide_index=True)
         st.markdown(f"#### {t('sector_wt_hdr', lang)}")
         sw = risk_mc.get("sector_weights") or {}
-        st.dataframe(pd.DataFrame([{"Sector": k, "NAV %": v} for k, v in sw.items()]), use_container_width=True, hide_index=True)
+        sw_rows = [
+            {
+                ("赛道" if is_zh else "Sector"): tr_sector_label(k, lang),
+                ("净值占比%" if is_zh else "NAV %"): v,
+            }
+            for k, v in sw.items()
+        ]
+        st.dataframe(pd.DataFrame(sw_rows), use_container_width=True, hide_index=True)
 
 
 # ==============================================================================
@@ -1365,6 +1534,7 @@ def _render_supply_chain_tab(payload: dict[str, Any] | None, lang: str) -> None:
         st.info(t("no_snap_banner", lang))
         return
 
+    is_zh = lang == "zh"
     sc_rep = (payload.get("llm") or {}).get("supply_chain_report") or {}
     if sc_rep and not sc_rep.get("error") and not sc_rep.get("parse_error"):
         st.subheader(f"{t('sc_ai_hdr', lang)} · {t('sc_temp', lang)}: {sc_rep.get('chain_temperature', '—')}")
@@ -1385,28 +1555,60 @@ def _render_supply_chain_tab(payload: dict[str, Any] | None, lang: str) -> None:
 
     st.subheader(f"{t('peer_rank_hdr', lang)}")
     for sec_label, items in (payload.get("sector_rankings") or {}).items():
-        with st.expander(f"{sec_label} ({len(items)})", expanded=True):
-            st.dataframe(pd.DataFrame(items), use_container_width=True, hide_index=True)
+        disp_sec = tr_sector_label(sec_label, lang)
+        with st.expander(f"{disp_sec} ({len(items)})", expanded=True):
+            peer_rows = [
+                {
+                    t("col_rank", lang): r.get("sector_rank"),
+                    t("col_sym", lang): r.get("symbol"),
+                    t("col_name", lang): r.get("name"),
+                    t("col_role", lang): tr_role(str(r.get("role", "watchlist")), lang),
+                    t("col_score", lang): r.get("composite_score"),
+                    t("col_price", lang): r.get("close"),
+                    t("col_1d", lang): r.get("chg_1d_pct"),
+                    t("col_21d", lang): r.get("ret_21d_pct"),
+                    t("col_rs_sec", lang): r.get("rs_sector_21d_pct"),
+                    t("col_stage", lang): tr_stage_label_str(str(r.get("stage_label", "")), lang),
+                    t("col_crash", lang): tr_crash_badge_str(str(r.get("crash_badge", "")), lang),
+                    t("col_earn", lang): tr_earnings_flag_str(str(r.get("earnings_flag", "")), lang),
+                }
+                for r in items
+            ]
+            st.dataframe(pd.DataFrame(peer_rows), use_container_width=True, hide_index=True)
 
     p1, p2 = st.columns(2)
     with p1:
         st.subheader(f"{t('pair_hdr', lang)}")
         pairs = payload.get("rotation_pairs") or []
         if pairs:
-            st.dataframe(
-                pd.DataFrame(pairs)[["pair", "zscore_60d", "corr_60d", "left_21d_pct", "right_21d_pct", "interpretation"]],
-                use_container_width=True,
-                hide_index=True,
-            )
+            pair_rows = [
+                {
+                    ("配对" if is_zh else "Pair"): p.get("pair"),
+                    ("60日Z分" if is_zh else "60D Z-Score"): p.get("zscore_60d"),
+                    ("60日相关" if is_zh else "60D Corr"): p.get("corr_60d"),
+                    ("左标的21D%" if is_zh else "Left 21D %"): p.get("left_21d_pct"),
+                    ("右标的21D%" if is_zh else "Right 21D %"): p.get("right_21d_pct"),
+                    ("轮动解读" if is_zh else "Interpretation"): tr_pair_interpretation(p, lang),
+                }
+                for p in pairs
+            ]
+            st.dataframe(pd.DataFrame(pair_rows), use_container_width=True, hide_index=True)
     with p2:
         st.subheader(f"{t('ll_hdr', lang)}")
         ll = payload.get("lead_lag") or []
         if ll:
-            st.dataframe(
-                pd.DataFrame(ll)[["source", "target", "same_day_corr", "best_lag_days", "best_lag_corr", "divergence_10d_pct"]],
-                use_container_width=True,
-                hide_index=True,
-            )
+            ll_rows = [
+                {
+                    ("上游" if is_zh else "Upstream"): e.get("source"),
+                    ("下游" if is_zh else "Downstream"): e.get("target"),
+                    ("同日相关" if is_zh else "Same-Day Corr"): e.get("same_day_corr"),
+                    ("最佳滞后(天)" if is_zh else "Best Lag (d)"): e.get("best_lag_days"),
+                    ("滞后相关" if is_zh else "Lag Corr"): e.get("best_lag_corr"),
+                    ("10日背离%" if is_zh else "10D Spread %"): e.get("divergence_10d_pct"),
+                }
+                for e in ll
+            ]
+            st.dataframe(pd.DataFrame(ll_rows), use_container_width=True, hide_index=True)
 
 
 # ==============================================================================
@@ -1417,6 +1619,7 @@ def _render_backtest_ml_tab(payload: dict[str, Any] | None, lang: str) -> None:
         st.info(t("no_snap_banner", lang))
         return
 
+    is_zh = lang == "zh"
     bt = payload.get("backtest") or {}
     st.subheader(f"{t('bt_hdr', lang)}")
     if bt.get("available"):
@@ -1426,7 +1629,11 @@ def _render_backtest_ml_tab(payload: dict[str, Any] | None, lang: str) -> None:
         m2.metric(t("bt_sharpe", lang), f"{best['sharpe']}")
         m3.metric(t("bt_sortino", lang), f"{best['sortino']}")
         m4.metric(t("bt_mdd", lang), f"{best['max_drawdown_pct']}%")
-        m5.metric(t("bt_win", lang), f"{best['win_rate_pct']}%", f"{best['total_trades']} trades")
+        m5.metric(
+            t("bt_win", lang),
+            f"{best['win_rate_pct']}%",
+            f"{best['total_trades']} {'笔交易' if is_zh else 'trades'}",
+        )
         m6.metric(t("bt_pf", lang), f"{best['profit_factor']}", f"{bt.get('elapsed_ms')}ms")
 
         c1, c2 = st.columns([1.3, 1.0])
@@ -1435,7 +1642,7 @@ def _render_backtest_ml_tab(payload: dict[str, Any] | None, lang: str) -> None:
         with c2:
             st.plotly_chart(make_backtest_heatmap(bt, lang=lang), use_container_width=True)
     else:
-        st.info(bt.get("reason", "Backtest skipped."))
+        st.info(tr_skip_reason(bt.get("reason"), lang, default_en="Backtest skipped.", default_zh="本次跳过回测模块。"))
 
     st.divider()
     ml = payload.get("ml_alpha") or {}
@@ -1449,9 +1656,15 @@ def _render_backtest_ml_tab(payload: dict[str, Any] | None, lang: str) -> None:
         c4.metric(t("ml_spread", lang), _fmt_pct(oos.get("oos_top_vs_bottom_spread_pct")))
         if ml.get("top_features"):
             st.markdown(f"##### {t('ml_feats', lang)}")
-            st.dataframe(pd.DataFrame(ml["top_features"]), use_container_width=True, hide_index=True)
+            feat_df = pd.DataFrame(ml["top_features"]).rename(
+                columns={
+                    "feature": "特征" if is_zh else "Feature",
+                    "importance": "重要性" if is_zh else "Importance",
+                }
+            )
+            st.dataframe(feat_df, use_container_width=True, hide_index=True)
     else:
-        st.info(ml.get("reason", "ML module skipped."))
+        st.info(tr_skip_reason(ml.get("reason"), lang, default_en="ML module skipped.", default_zh="本次跳过 ML 模块。"))
 
 
 # ==============================================================================
@@ -1673,7 +1886,7 @@ def _render_grid_lab_tab(
                     ("间距" if is_zh else "Spacing"): c["spacing_display"],
                     ("区间(现价)" if is_zh else "Live Range"): f"${c['lower_bound_live']} – ${c['upper_bound_live']} (±{c['range_pct']}%)",
                     ("仓位配比" if is_zh else "Sizing"): f"{c['sizing_style']} ({c['martingale_r']}x)",
-                    ("止损线" if is_zh else "Stop DD"): "None" if c["stop_loss_dd_pct"] is None else f"{c['stop_loss_dd_pct']:.0f}%",
+                    ("止损线" if is_zh else "Stop DD"): ("无" if is_zh else "None") if c["stop_loss_dd_pct"] is None else f"{c['stop_loss_dd_pct']:.0f}%",
                     ("高原分" if is_zh else "Plateau"): c["plateau_score"],
                     ("邻域波动" if is_zh else "Local Std"): c["neighborhood_std"],
                     "Sharpe": c["sharpe"],
@@ -1762,7 +1975,14 @@ def _render_grid_lab_tab(
         sm4.metric("Crash Recall" if not is_zh else "暴跌捕获率", _fmt_pct(s4.get("oos_crash_recall_pct"), False))
         sm5.metric("Red-Light Avg 5D" if not is_zh else "红灯期实际5日均值", _fmt_pct(s4.get("red_light_avg_5d_ret_pct")))
     else:
-        st.info((s4 or {}).get("reason", "ML Switch unavailable."))
+        st.info(
+            tr_skip_reason(
+                (s4 or {}).get("reason"),
+                lang,
+                default_en="ML Switch unavailable.",
+                default_zh="ML 防暴跌开关暂不可用。",
+            )
+        )
 
     # Pick which Top-5 config to display on the Live Broker Order Monitor (defaults to Stage-3 Champion)
     cfg_choices = s2["top_5_plateaus"]
@@ -1811,9 +2031,17 @@ def _render_grid_lab_tab(
         last_px = float(grid_lq["latest_price"])
         if grid_lq.get("ext_session") and grid_lq.get("ext_price") is not None:
             st.caption(
-                f"Anchored to {grid_lq['ext_session']}-MKT ${last_px:,.2f} "
-                f"({_fmt_pct(grid_lq.get('ext_change_pct'))} vs Regular ${grid_lq.get('regular_price') or reg_px:,.2f}) "
-                f"· Updated {grid_lq.get('fetched_at', '')}"
+                (
+                    f"已锚定 {grid_lq['ext_session']} 盘报价 ${last_px:,.2f} "
+                    f"（较常规价 ${grid_lq.get('regular_price') or reg_px:,.2f} {_fmt_pct(grid_lq.get('ext_change_pct'))}）"
+                    f" · 更新于 {grid_lq.get('fetched_at', '')}"
+                )
+                if is_zh
+                else (
+                    f"Anchored to {grid_lq['ext_session']}-MKT ${last_px:,.2f} "
+                    f"({_fmt_pct(grid_lq.get('ext_change_pct'))} vs Regular ${grid_lq.get('regular_price') or reg_px:,.2f}) "
+                    f"· Updated {grid_lq.get('fetched_at', '')}"
+                )
             )
     else:
         last_px = reg_px
@@ -1898,7 +2126,25 @@ def _render_journal_tab(db: TradingDB, lang: str) -> None:
 
     entries = db.list_journal_entries(limit=100)
     if entries:
-        st.dataframe(pd.DataFrame(entries), use_container_width=True, hide_index=True)
+        is_zh = lang == "zh"
+        j_df = pd.DataFrame(entries).rename(
+            columns={
+                "id": "编号" if is_zh else "ID",
+                "created_at": "记录时间" if is_zh else "Created At",
+                "symbol": t("jrn_sym", lang),
+                "action": t("jrn_act", lang),
+                "shares": t("jrn_sh", lang),
+                "price": t("jrn_px", lang),
+                "stop_loss": t("jrn_stop", lang),
+                "target_price": t("jrn_tgt", lang),
+                "setup_tag": t("jrn_tag", lang),
+                "conviction": t("jrn_conv", lang),
+                "notes": "复盘备注" if is_zh else "Notes",
+                "outcome_pnl": "平仓盈亏($)" if is_zh else "Realized P&L ($)",
+                "status": "状态" if is_zh else "Status",
+            }
+        )
+        st.dataframe(j_df, use_container_width=True, hide_index=True)
     else:
         st.caption(t("jrn_empty", lang))
 

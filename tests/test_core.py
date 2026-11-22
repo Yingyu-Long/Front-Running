@@ -148,12 +148,132 @@ class TestBilingualUIAndPrompts(unittest.TestCase):
         self.assertIn("STOP HIT", tr_holding_action("触发止损线 · 建议减仓/止损", "en"))
         self.assertIn("BULL EXPANSION", tr_regime_label(80.0, "强势进攻期", "en"))
 
+        from src.ui.i18n import (
+            tr_crash_badge_str,
+            tr_earnings_flag_str,
+            tr_pair_interpretation,
+            tr_penalty,
+            tr_sector_label,
+            tr_skip_reason,
+            tr_stage_label_str,
+            tr_stress_scenario,
+        )
+
+        self.assertIn("SOXX -15%", tr_stress_scenario({"scenario": "AI / 半导体板块回调 (SOXX -15%)"}, "en"))
+        self.assertIn("半导体", tr_stress_scenario({"scenario": "AI / 半导体板块回调 (SOXX -15%)"}, "zh"))
+        self.assertEqual("Cash Reserve", tr_sector_label("现金储备 (Cash)", "en"))
+        self.assertIn("Tier 1", tr_sector_label("上游 · 云巨头与 AI 基础设施 (CapEx 金主)", "en"))
+        self.assertIn("Earnings in 5d", tr_penalty("财报仅剩 5 天(-7分防赌财报)", "en"))
+        self.assertEqual("Healthy Uptrend", tr_crash_badge_str("上升趋势/常规波段", "en"))
+        self.assertEqual("Stage 2 · Advancing", tr_stage_label_str("Stage 2 · 上升主升浪", "en"))
+        self.assertEqual("CLEAR (35d)", tr_earnings_flag_str("安全 (35天)", "en"))
+        self.assertIn(
+            "stretched vs",
+            tr_pair_interpretation({"left": "STX", "right": "WDC", "zscore_60d": 2.1, "left_21d_pct": 10.0, "right_21d_pct": 2.0}, "en"),
+        )
+        self.assertIn("skipped", tr_skip_reason("本次跳过回测模块", "en").lower())
+
         sc_en, st_en, pm_en = get_prompts("en")
         sc_zh, st_zh, pm_zh = get_prompts("zh")
         self.assertIn("Chief Supply-Chain Strategist", sc_en)
         self.assertIn("产业链首席策略师", sc_zh)
         self.assertIn("Weekly Swing Execution Plan", pm_en)
         self.assertIn("本周波段交易执行计划", pm_zh)
+
+    def test_bilingual_markdown_report_export(self) -> None:
+        from src.engine.orchestrator import export_markdown_report, render_markdown_report
+
+        sample_payload = {
+            "generated_at": "2026-11-22 22:40:00",
+            "elapsed_sec": 42.5,
+            "device_profile": {"summary": "RTX 5070 Ti CUDA"},
+            "regime": {
+                "regime_score": 78.0,
+                "regime_label": "强势进攻期 (Bull Expansion)",
+                "suggested_max_exposure_pct": 90,
+                "suggested_defensive_cash_pct": 10,
+                "action_guide": "主线顺风",
+                "metrics": {"breadth_above_50ma_pct": 75.0, "breadth_above_20ma_pct": 70.0, "VIX": 15.2},
+                "signals": ["半导体相对大盘走强"],
+            },
+            "holdings_diagnosis": [
+                {
+                    "symbol": "GOOG",
+                    "close": 200.0,
+                    "weight_pct": 25.0,
+                    "composite_score": 76.0,
+                    "active_stop": 185.0,
+                    "risk_contribution_pct": 20.0,
+                    "earnings_flag": "安全 (35天)",
+                    "action": "核心持有 · 逢回踩可加仓",
+                }
+            ],
+            "stocks": {
+                "GOOG": {
+                    "symbol": "GOOG",
+                    "sector": "cloud_ai",
+                    "sector_label": "上游 · 云巨头",
+                    "close": 200.0,
+                    "composite_score": 76.0,
+                    "analog": {"win_rate_21d_pct": 68.0},
+                    "crash_analysis": {"status": "UPTREND_HEALTHY", "badge": "上升趋势/常规波段"},
+                    "fundamentals": {"days_to_earnings": 35, "earnings_risk_flag": "安全 (35天)"},
+                    "trade_ticket": {
+                        "entry_low": 195.0,
+                        "entry_high": 202.0,
+                        "hard_stop": 185.0,
+                        "target_1": 225.0,
+                        "rr_target_1": 2.4,
+                        "action_signal": "优先买入候选",
+                    },
+                }
+            },
+            "risk_mc": {
+                "available": True,
+                "total_nav_usd": 100000.0,
+                "gross_exposure_pct": 85.0,
+                "portfolio_vol_ann_pct": 24.5,
+                "horizon_21d": {
+                    "var_95_pct": -8.2,
+                    "var_95_usd": -8200.0,
+                    "cvar_95_pct": -11.4,
+                    "cvar_95_usd": -11400.0,
+                    "prob_loss_gt_10pct": 3.5,
+                    "prob_gain_gt_10pct": 12.1,
+                },
+                "stress_tests": [
+                    {
+                        "scenario": "AI / 半导体板块回调 (SOXX -15%)",
+                        "scenario_en": "AI / Semiconductor Pullback (SOXX -15%)",
+                        "est_portfolio_impact_pct": -11.2,
+                        "est_portfolio_impact_usd": -11200.0,
+                        "largest_drag_symbol": "GOOG",
+                    }
+                ],
+            },
+            "llm": {"available": True, "model": "deepseek-chat", "supply_chain_report": {}, "pm_weekly_memo": ""},
+        }
+
+        md_en = render_markdown_report(sample_payload, lang="en")
+        self.assertIn("US Equity Swing Research Report", md_en)
+        self.assertIn("Active Holdings Diagnostics", md_en)
+        self.assertIn("PRIORITY BUY", md_en)
+        self.assertIn("CORE HOLD", md_en)
+        self.assertIn("AI / Semiconductor Pullback (SOXX -15%)", md_en)
+        self.assertNotIn("大盘与半导体温度计", md_en)
+
+        md_zh = render_markdown_report(sample_payload, lang="zh")
+        self.assertIn("美股波段投研周报", md_zh)
+        self.assertIn("当前持仓诊断", md_zh)
+        self.assertIn("优先买入候选", md_zh)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            p_en = export_markdown_report(sample_payload, Path(tmp), lang="en")
+            p_zh = export_markdown_report(sample_payload, Path(tmp), lang="zh")
+            self.assertTrue(p_en.name.endswith("_en.md"))
+            self.assertTrue(p_zh.name.endswith("_zh.md"))
+            self.assertIn("US Equity Swing Research Report", p_en.read_text(encoding="utf-8"))
+            self.assertIn("美股波段投研周报", p_zh.read_text(encoding="utf-8"))
 
 
 class TestExtendedHoursQuotes(unittest.TestCase):
@@ -223,6 +343,23 @@ class TestExtendedHoursQuotes(unittest.TestCase):
         )
         self.assertEqual(q_closed["ext_session"], "PRE")
         self.assertAlmostEqual(q_closed["ext_price"], 202.0)
+
+    def test_auto_total_account_equity(self) -> None:
+        from src.engine.orchestrator import _compute_live_account_equity
+
+        portfolio_cfg = {
+            "account": {"cash_usd": 15000.0, "total_equity_usd": 99999.0},
+            "holdings": [
+                {"symbol": "GOOG", "shares": 50, "avg_cost": 180.0},
+                {"symbol": "STX", "shares": 30, "avg_cost": 100.0},
+            ],
+        }
+        live_quotes = {
+            "GOOG": {"regular_price": 200.0},
+            "STX": {"regular_price": 120.0},
+        }
+        # 50 * 200 + 30 * 120 + 15000 = 10000 + 3600 + 15000 = 28600
+        self.assertAlmostEqual(_compute_live_account_equity(portfolio_cfg, {}, live_quotes), 28600.0)
 
 
 @unittest.skipUnless(HAS_NUMPY_PANDAS, "numpy/pandas not installed in current host Python")
