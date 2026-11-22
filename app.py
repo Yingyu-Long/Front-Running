@@ -557,11 +557,9 @@ def main() -> None:
 
         if st.button(t("btn_run_scan", lang), type="primary", use_container_width=True):
             pbar = st.progress(0.0)
-            status_box = st.empty()
 
-            def _cb(pct: float, msg: str) -> None:
+            def _cb(pct: float, _msg: str) -> None:
                 pbar.progress(min(1.0, max(0.0, pct)))
-                status_box.info(msg)
 
             try:
                 new_payload = run_full_analysis_pipeline(
@@ -1584,11 +1582,9 @@ def _render_grid_lab_tab(
 
     if run_deep:
         pbar = st.progress(0.0)
-        st_box = st.empty()
 
-        def _gcb(pct: float, msg: str) -> None:
+        def _gcb(pct: float, _msg: str) -> None:
             pbar.progress(min(1.0, max(0.0, pct)))
-            st_box.info(msg)
 
         md = MarketDataFetcher(settings.data_dir, history_years=settings.history_years)
         ohlcv_map, _ = md.fetch_universe(universe_cfg, extra_symbols=[target_sym])
