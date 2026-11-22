@@ -490,7 +490,11 @@ def main() -> None:
         st.divider()
         st.markdown(f"**{t('llm_section', lang)}**")
         llm_base_url = st.text_input(t("llm_url", lang), value=settings.llm_base_url)
-        probe = LocalLLMClient(base_url=llm_base_url, model=settings.llm_model).check_health()
+        probe = LocalLLMClient(
+            base_url=llm_base_url,
+            api_key=settings.llm_api_key,
+            model=settings.llm_model,
+        ).check_health()
 
         if probe.get("online"):
             avail_models = probe.get("models") or [settings.llm_model]

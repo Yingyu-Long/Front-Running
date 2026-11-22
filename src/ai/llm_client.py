@@ -89,21 +89,36 @@ class LocalLLMClient:
         )
 
     def check_health(self) -> dict[str, Any]:
-        """Probe Ollama/vLLM server availability and return installed model list."""
+        """Probe OpenAI-compatible (local Ollama/vLLM or cloud API) endpoint availability."""
         if requests is None:
-            return {"online": False, "models": [], "base_url": self.base_url, "error": "缺少 requests 依赖"}
+            return {"online": False, "models": [], "base_url": self.base_url, "error": "Missing requests dependency"}
         models: list[str] = []
-        # Try OpenAI-compatible /models endpoint first
+        headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
+        is_remote_https = self.base_url.startswith("https://")
+        timeout = 8.0 if is_remote_https else 3.0
+
+        # Try OpenAI-compatible /models endpoint first (with Bearer auth for cloud APIs)
         try:
-            resp = requests.get(f"{self.base_url}/models", timeout=3.0)
+            resp = requests.get(f"{self.base_url}/models", headers=headers, timeout=timeout)
             if resp.status_code == 200:
                 data = resp.json()
                 models = [str(m.get("id", "")) for m in (data.get("data") or []) if m.get("id")]
                 return {"online": True, "models": models, "base_url": self.base_url}
-        except Exception:
-            pass
+            if resp.status_code in (401, 403):
+                return {
+                    "online": False,
+                    "models": [],
+                    "base_url": self.base_url,
+                    "error": f"API authentication failed (HTTP {resp.status_code}). Check LLM_API_KEY in .env.",
+                }
+            if is_remote_https and resp.status_code in (404, 405):
+                # Some cloud gateways omit /models while supporting /chat/completions
+                return {"online": True, "models": [self.model], "base_url": self.base_url}
+        except Exception as exc:
+            if is_remote_https:
+                return {"online": False, "models": [], "base_url": self.base_url, "error": str(exc)}
 
-        # Fallback: Ollama native /api/tags
+        # Fallback: Ollama native /api/tags (local endpoints)
         root = self.base_url[:-3] if self.base_url.endswith("/v1") else self.base_url
         try:
             resp = requests.get(f"{root}/api/tags", timeout=3.0)
@@ -114,7 +129,7 @@ class LocalLLMClient:
         except Exception as exc:
             return {"online": False, "models": [], "base_url": self.base_url, "error": str(exc)}
 
-        return {"online": False, "models": [], "base_url": self.base_url, "error": "无法连接本地推理服务"}
+        return {"online": False, "models": [], "base_url": self.base_url, "error": "Unable to reach LLM endpoint"}
 
     def chat_text(
         self,

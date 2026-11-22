@@ -13,9 +13,9 @@ dist/
 *.egg-info/
 
 # Local data, caches, DB & generated reports
-data/
-reports/
-logs/
+/data/
+/reports/
+/logs/
 *.db
 *.sqlite
 *.sqlite3
