@@ -126,7 +126,8 @@ def run_full_analysis_pipeline(
             continue
         sec_key = str((u_meta.get(sym) or {}).get("sector", "other"))
         bench_sym = str((sectors_meta.get(sec_key) or {}).get("benchmark", "QQQ"))
-        bench_df = ohlcv_map.get(bench_sym) or qqq_df
+        bench_cand = ohlcv_map.get(bench_sym)
+        bench_df = bench_cand if (bench_cand is not None and not bench_cand.empty) else qqq_df
         f_score = float((fundamentals_map.get(sym) or {}).get("fundamental_score", 50.0))
         tech_map[sym] = analyze_stock_technicals(
             symbol=sym,
